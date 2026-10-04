@@ -1,0 +1,11 @@
+## MOVAZ (array to vector, four registers)
+
+Move and zero four ZA single-vector groups to Z four-vector operand This instruction operates on four ZA single-vector groups. The ZA single-vector groups are zeroed after moving their contents to the destination vectors. The single-vector group within each quarter of the ZA array is selected by the sum of the vector select register and offset, modulo quarter the number of ZA array vectors. The vector group symbol VGx4 indicates that the instruction operates on four ZA single-vector groups. The preferred disassembly syntax uses a 64-bit element size, but an assembler should accept any element size if it is used consistently for all operands. The vector group symbol is preferred for disassembly, but optional in assembler source code. This instruction is unpredicated.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SME2p1) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let v : integer = UInt('010'::Rv); let offset : integer = UInt(off3); let d : integer = UInt(Zd::'00'); let nreg : integer{} = 4;
+
+### Operation
+
+[CheckStreamingSVEAndZAEnabled](shared_pseudocode.html#func_CheckStreamingSVEAndZAEnabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let vectors : integer = VL DIV 8; let vstride : integer = vectors DIV nreg; let vbase : bits(32) = X{}(v); var vec : integer = (UInt(vbase) + offset) MOD vstride; for r = 0 to nreg-1 do let result : bits(VL) = ZAvector{}(vec); [ZAvector](shared_pseudocode.html#accessor_ZAvector_2){VL}(vec) = Zeros{VL}; [Z](shared_pseudocode.html#accessor_Z_2){VL}(d + r) = result; vec = vec + vstride; end;

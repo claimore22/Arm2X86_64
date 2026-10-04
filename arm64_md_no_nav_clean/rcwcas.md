@@ -1,0 +1,11 @@
+## RCWCAS, RCWCASA, RCWCASAL, RCWCASL
+
+Read check write compare and swap doubleword in memory This instruction reads a 64-bit doubleword from memory, and compares it against the value held in a register. If the comparison is equal, the value in a second register is conditionally written to memory. Storing back to memory is conditional on RCW Checks. If the compare fails or the RCW Checks fail, the architecture permits writing the value read from the location to memory. If the write is performed, the read and the write occur atomically such that no other modification of the memory location can take place between the read and the write. This instruction updates the condition flags based on the result of the update of memory. - If the destination register is not XZR, RCWCASA and RCWCASAL load from memory with acquire semantics. - RCWCASL and RCWCASAL store to memory with release semantics. - RCWCAS has neither acquire nor release semantics.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_THE) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let s : integer{} = UInt(Rs); let t : integer{} = UInt(Rt); let n : integer{} = UInt(Rn); let soft : boolean = FALSE; let acquire : boolean = A == '1' && s != 31; let release : boolean = R == '1'; let tagchecked : boolean = n != 31;
+
+### Operation
+
+if [IsD128Enabled](shared_pseudocode.html#func_IsD128Enabled_1)([PSTATE](shared_pseudocode.html#global_PSTATE).EL) then Undefined(); end; var address : bits(64); let newdata : bits(64) = X{}(t); let compdata : bits(64) = X{}(s); var readdata : bits(64); var nzcv : bits(4); let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescRCW](shared_pseudocode.html#func_CreateAccDescRCW_7)([MemAtomicOp_CAS](shared_pseudocode.html#enum_MemAtomicOp_CAS), soft, acquire, release, tagchecked, t, s); if n == 31 then [CheckSPAlignment](shared_pseudocode.html#func_CheckSPAlignment_0)(); address = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else address = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; (nzcv, readdata) = [MemAtomicRCW](shared_pseudocode.html#func_MemAtomicRCW_5){64}(address, compdata, newdata, accdesc); PSTATE.[N,Z,C,V] = nzcv; [X](shared_pseudocode.html#accessor_X_2){64}(s) = readdata; // Return the old value when s!=31

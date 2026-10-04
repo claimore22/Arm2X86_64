@@ -1,0 +1,11 @@
+## FMLAL, FMLAL2 (vector)
+
+Floating-point fused multiply-add long to accumulator (vector) This instruction multiplies corresponding half-precision floating-point values in the vectors in the two source SIMD&FP registers, and accumulates the intermediate product without rounding to the corresponding single-precision vector element of the destination SIMD&FP register. This instruction can generate a floating-point exception. Depending on the settings in FPCR, the exception results in either a flag being set in FPSR or a synchronous exception being generated. For more information, see Floating-point exceptions and exception traps. Depending on the settings in the CPACR_EL1, CPTR_EL2, and CPTR_EL3 registers, and the current Security state and Exception level, an attempt to execute the instruction might be trapped. In Armv8.2 and Armv8.3, this is an OPTIONAL instruction. From Armv8.4, it is mandatory for all implementations to support it.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_FHM) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if sz == '1' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let d : integer{} = UInt(Rd); let n : integer{} = UInt(Rn); let m : integer{} = UInt(Rm); let esize : integer{} = 32; let datasize : integer{} = 64 << UInt(Q); let elements : integer = datasize DIV esize; let part : integer = 1;
+
+### Operation
+
+[AArch64_CheckFPAdvSIMDEnabled](shared_pseudocode.html#func_AArch64_CheckFPAdvSIMDEnabled_0)(); let operand1 : bits(datasize DIV 2) = Vpart{}(n, part); let operand2 : bits(datasize DIV 2) = Vpart{}(m, part); let operand3 : bits(datasize) = V{}(d); var result : bits(datasize); var element1 : bits(esize DIV 2); var element2 : bits(esize DIV 2); for e = 0 to elements-1 do element1 = operand1[e\*:(esize DIV 2)]; element2 = operand2[e\*:(esize DIV 2)]; result[e\*:esize] = [FPMulAddH](shared_pseudocode.html#func_FPMulAddH_4)(operand3[e\*:esize], element1, element2, FPCR()); end; [V](shared_pseudocode.html#accessor_V_2){datasize}(d) = result;

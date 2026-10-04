@@ -1,0 +1,11 @@
+## PRFM (immediate)
+
+Prefetch memory (immediate) This instruction signals the memory system that data memory accesses from a specified address are likely to occur in the near future. The address for data memory accesses is calculated from a base register value and an immediate offset. The memory system can respond by taking actions that are expected to speed up the memory accesses when they do occur, such as making the cache line containing the specified address available at the level of cache specified by the instruction. The \ operand specifies the prefetch hint as follows: - Access type: - When FEAT_PCDPHINT is implemented, IR for intent to read on update. - PLD for prefetch for load. - PLI for prefetch for execute. - PST for prefetch for store. - Target cache level: - L1 for Level 1 cache. - L2 for Level 2 cache. - L3 for Level 3 cache. - When FEAT_PRFMSLC is implemented, SLC for system level cache. - Policy: - KEEP for retained or temporal prefetch, allocated in the cache normally. - STRM for streaming or non-temporal prefetch, for data that is used only once. The effect of a PRFM instruction is IMPLEMENTATION DEFINED. For more information, see Prefetch memory. For information about addressing modes, see Load/Store addressing modes.
+
+#### Decode
+
+let offset : bits(64) = LSL(ZeroExtend{64}(imm12), 3); let n : integer = UInt(Rn); let t : integer = UInt(Rt); let nontemporal : boolean = FALSE; let tagchecked : boolean = FALSE;
+
+### Operation
+
+var address : bits(64); let privileged : boolean = [PSTATE](shared_pseudocode.html#global_PSTATE).EL != [EL0](shared_pseudocode.html#global_EL0); let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescGPR](shared_pseudocode.html#func_CreateAccDescGPR_5)([MemOp_PREFETCH](shared_pseudocode.html#enum_MemOp_PREFETCH), nontemporal, privileged, tagchecked, t); if n == 31 then address = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else address = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; address = [AddressAdd](shared_pseudocode.html#func_AddressAdd_3)(address, offset, accdesc); let supports_ir : boolean = IsFeatureImplemented(FEAT_PCDPHINT); [Prefetch](shared_pseudocode.html#func_Prefetch_3)(address, t[4:0], supports_ir);

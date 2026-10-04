@@ -1,0 +1,11 @@
+## BFSCALE
+
+BFloat16 adjust exponent (predicated) This instruction multiplies the active BFloat16 elements of the first source vector by 2.0 to the power of the signed integer values in the corresponding elements of the second source vector and destructively places the results in the corresponding elements of the first source vector. Inactive elements in the destination vector register remain unmodified. This instruction follows SVE2 non-widening BFloat16 numerical behaviors.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SVE_BFSCALE) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let g : integer = UInt(Pg); let dn : integer = UInt(Zdn); let m : integer = UInt(Zm);
+
+### Operation
+
+if IsFeatureImplemented(FEAT_SME2) then [CheckSVEEnabled](shared_pseudocode.html#func_CheckSVEEnabled_0)(); else [CheckNonStreamingSVEEnabled](shared_pseudocode.html#func_CheckNonStreamingSVEEnabled_0)(); end; let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let PL : integer{} = VL DIV 8; let elements : integer = VL DIV 16; let mask : bits(PL) = P{}(g); let operand1 : bits(VL) = Z{}(dn); let operand2 : bits(VL) = if [AnyActiveElement](shared_pseudocode.html#func_AnyActiveElement_3){PL}(mask, 16) then [Z](shared_pseudocode.html#accessor_Z_2){VL}(m) else Zeros{VL}; var result : bits(VL); for e = 0 to elements-1 do let element1 : bits(16) = operand1[e\*:(16)]; if [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask, e, 16) then let element2 : integer = SInt(operand2[e\*:(16)]); result[e\*:(16)] = [BFScale](shared_pseudocode.html#func_BFScale_3)(element1, element2, FPCR()); else result[e\*:(16)] = element1; end; end; [Z](shared_pseudocode.html#accessor_Z_2){VL}(dn) = result;

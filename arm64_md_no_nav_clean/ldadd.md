@@ -1,0 +1,11 @@
+## LDADD, LDADDA, LDADDAL, LDADDL
+
+Atomic add on word or doubleword This instruction atomically loads a 32-bit word or 64-bit doubleword from memory, adds the value held in a register to it, and stores the result back to memory. The value initially loaded from memory is returned in the destination register. - If the destination register is not one of WZR or XZR, LDADDA and LDADDAL load from memory with acquire semantics. - LDADDL and LDADDAL store to memory with release semantics. - LDADD has neither acquire nor release semantics. For more information about memory ordering semantics, see Load-Acquire, Store-Release. For information about addressing modes, see Load/Store addressing modes. This instruction is used by the alias [STADD, STADDL](stadd_ldadd.html "Atomic add on word or doubleword, without return").
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_LSE) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let s : integer{} = UInt(Rs); let t : integer{} = UInt(Rt); let n : integer{} = UInt(Rn); let datasize : integer{} = 8 << UInt(size); let regsize : integer{} = if datasize == 64 then 64 else 32; let acquire : boolean = A == '1' && Rt != '11111'; let release : boolean = R == '1'; let tagchecked : boolean = n != 31;
+
+### Operation
+
+var address : bits(64); let privileged : boolean = [PSTATE](shared_pseudocode.html#global_PSTATE).EL != [EL0](shared_pseudocode.html#global_EL0); let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescAtomicOp](shared_pseudocode.html#func_CreateAccDescAtomicOp_7)([MemAtomicOp_ADD](shared_pseudocode.html#enum_MemAtomicOp_ADD), acquire, release, tagchecked, privileged, t, s); if n == 31 then [CheckSPAlignment](shared_pseudocode.html#func_CheckSPAlignment_0)(); address = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else address = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; let comparevalue : bits(datasize) = ARBITRARY : bits(datasize); // Irrelevant when not executing CAS let value : bits(datasize) = [X](shared_pseudocode.html#accessor_X_2){datasize}(s); let data : bits(datasize) = MemAtomic{}(address, comparevalue, value, accdesc); if t != 31 then [X](shared_pseudocode.html#accessor_X_2){regsize}(t) = ZeroExtend{regsize}(data); end;

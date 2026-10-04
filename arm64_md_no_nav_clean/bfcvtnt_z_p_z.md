@@ -1,0 +1,11 @@
+## BFCVTNT
+
+Single-precision convert to BFloat16 (top, predicated) This instruction converts each active floating-point element of the source vector from single-precision to BFloat16 floating-point, and places the results in the odd-numbered 16-bit elements of the destination vector, leaving the even-numbered elements unchanged. Inactive elements in the destination vector register remain unmodified or are set to zero, depending on whether merging or zeroing predication is selected. ID_AA64ZFR0_EL1.BF16 indicates whether this instruction is implemented. It has encodings from 2 classes: [Merging](#iclass_merging) and [Zeroing](#iclass_zeroing)
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SVE2p2) && !IsFeatureImplemented(FEAT_SME2p2) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let g : integer = UInt(Pg); let n : integer = UInt(Zn); let d : integer = UInt(Zd); let merging : boolean = FALSE;
+
+### Operation
+
+[CheckSVEEnabled](shared_pseudocode.html#func_CheckSVEEnabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let PL : integer{} = VL DIV 8; let elements : integer = VL DIV 32; let mask : bits(PL) = P{}(g); let operand : bits(VL) = if [AnyActiveElement](shared_pseudocode.html#func_AnyActiveElement_3){PL}(mask, 32) then [Z](shared_pseudocode.html#accessor_Z_2){VL}(n) else Zeros{VL}; var result : bits(VL) = Z{}(d); for e = 0 to elements-1 do if [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask, e, 32) then let element : bits(32) = operand[e\*:32]; result[(2\*e+1)\*:16] = [FPConvertBF](shared_pseudocode.html#func_FPConvertBF_2)(element, FPCR()); elsif !merging then result[(2\*e+1)\*:16] = Zeros{16}; end; end; [Z](shared_pseudocode.html#accessor_Z_2){VL}(d) = result;

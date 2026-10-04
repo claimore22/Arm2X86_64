@@ -1,0 +1,11 @@
+## BRAA, BRAAZ, BRAB, BRABZ
+
+Branch to register, with pointer authentication This instruction authenticates the address in the general-purpose register that is specified by <Xn>, using a modifier and the specified key, and branches to the authenticated address. The modifier is: - In the general-purpose register or stack pointer that is specified by <Xm\|SP>, for BRAA and BRAB. - The value zero, for BRAAZ and BRABZ. Key A is used for BRAA and BRAAZ. Key B is used for BRAB and BRABZ. If the authentication passes, the PE continues execution at the target of the branch. For information on behavior if the authentication fails, see Faulting on pointer authentication. The authenticated address is not written back to the general-purpose register. This instruction provides a hint that this is not a subroutine call or return.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_PAuth) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if Z == '0' && Rm != '11111' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let n : integer{} = UInt(Rn); let m : integer{} = UInt(Rm); let use_key_a : boolean = (M == '0'); let source_is_sp : boolean = ((Z == '1') && (m == 31)); let auth_then_branch : boolean = TRUE;
+
+### Operation
+
+var target : bits(64) = X{}(n); let modifier : bits(64) = if source_is_sp then [SP](shared_pseudocode.html#accessor_SP_1){64}() else [X](shared_pseudocode.html#accessor_X_2){64}(m); if use_key_a then target = [AuthIA](shared_pseudocode.html#func_AuthIA_3)(target, modifier, auth_then_branch); else target = [AuthIB](shared_pseudocode.html#func_AuthIB_3)(target, modifier, auth_then_branch); end; // Value in BTypeNext will be used to set PSTATE.BTYPE if [InGuardedPage](shared_pseudocode.html#global_InGuardedPage) then if n == 16 \|\| n == 17 then [BTypeNext](shared_pseudocode.html#global_BTypeNext) = '01'; else [BTypeNext](shared_pseudocode.html#global_BTypeNext) = '11'; end; else [BTypeNext](shared_pseudocode.html#global_BTypeNext) = '01'; end; let branch_conditional : boolean = FALSE; [BranchTo](shared_pseudocode.html#func_BranchTo_4){64}(target, [BranchType_INDIR](shared_pseudocode.html#enum_BranchType_INDIR), branch_conditional);

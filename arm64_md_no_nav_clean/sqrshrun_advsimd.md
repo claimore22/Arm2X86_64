@@ -1,0 +1,11 @@
+## SQRSHRUN, SQRSHRUN2
+
+Signed saturating rounded shift right unsigned narrow (immediate) This instruction reads each signed integer value in the vector of the source SIMD&FP register, right shifts each value by an immediate value, saturates the result to an unsigned integer value that is half the original width, places the final result into a vector, and writes the vector to the destination SIMD&FP register. The results are rounded. For truncated results, see SQSHRUN. The SQRSHRUN instruction writes the vector to the lower half of the destination register and clears the upper half. The SQRSHRUN2 instruction writes the vector to the upper half of the destination register without affecting the other bits of the register. If saturation occurs, the cumulative saturation bit FPSR.QC is set. Depending on the settings in the CPACR_EL1, CPTR_EL2, and CPTR_EL3 registers, and the current Security state and Exception level, an attempt to execute the instruction might be trapped. It has encodings from 2 classes: [Scalar](#iclass_scalar) and [Vector](#iclass_vector)
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_AdvSIMD) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if immh[3] == '1' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let d : integer{} = UInt(Rd); let n : integer{} = UInt(Rn); let esize : integer{} = 8 << HighestSetBitNZ(immh[2:0]); let datasize : integer{} = 64; let part : integer = UInt(Q); let elements : integer = datasize DIV esize; let shift : integer = (2 \* esize) - UInt(immh::immb); let round : boolean = TRUE;
+
+### Operation
+
+[AArch64_CheckFPAdvSIMDEnabled](shared_pseudocode.html#func_AArch64_CheckFPAdvSIMDEnabled_0)(); let operand : bits(datasize\*2) = V{}(n); var result : bits(datasize); var element : integer; var sat : boolean; for e = 0 to elements-1 do element = [RShr](shared_pseudocode.html#func_RShr_3)(SInt(operand[e\*:(2\*esize)]), shift, round); (result[e\*:esize], sat) = [UnsignedSatQ](shared_pseudocode.html#func_UnsignedSatQ_2){esize}(element); if sat then FPSR().QC = '1'; end; end; [Vpart](shared_pseudocode.html#accessor_Vpart_3){datasize}(d, part) = result;

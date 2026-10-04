@@ -1,0 +1,11 @@
+## CADD
+
+Complex integer add This instruction adds the real and imaginary components of the integral complex numbers from the first source vector to the complex numbers from the second source vector that have first been rotated by 90 or 270 degrees in the direction from the positive real axis towards the positive imaginary axis, when considered in polar representation, equivalent to multiplying the complex numbers in the second source vector by ±j beforehand. The results are destructively placed in the corresponding elements of the first source vector. This instruction is unpredicated. Each complex number is represented in a vector register as an even/odd pair of elements with the real part in the even-numbered element and the imaginary part in the odd-numbered element.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SVE2) && !IsFeatureImplemented(FEAT_SME) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let esize : integer{} = 8 << UInt(size); let m : integer = UInt(Zm); let dn : integer = UInt(Zdn); let sub_i : boolean = (rot == '0'); let sub_r : boolean = (rot == '1');
+
+### Operation
+
+[CheckSVEEnabled](shared_pseudocode.html#func_CheckSVEEnabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let pairs : integer = VL DIV (2 \* esize); let operand1 : bits(VL) = Z{}(dn); let operand2 : bits(VL) = Z{}(m); var result : bits(VL); for p = 0 to pairs-1 do var acc_r : integer = SInt(operand1[(2 \* p + 0)\*:esize]); var acc_i : integer = SInt(operand1[(2 \* p + 1)\*:esize]); let elt2_r : integer = SInt(operand2[(2 \* p + 0)\*:esize]); let elt2_i : integer = SInt(operand2[(2 \* p + 1)\*:esize]); if sub_i then acc_r = acc_r - elt2_i; acc_i = acc_i + elt2_r; end; if sub_r then acc_r = acc_r + elt2_i; acc_i = acc_i - elt2_r; end; result[(2 \* p + 0)\*:esize] = acc_r[esize-1:0]; result[(2 \* p + 1)\*:esize] = acc_i[esize-1:0]; end; [Z](shared_pseudocode.html#accessor_Z_2){VL}(dn) = result;

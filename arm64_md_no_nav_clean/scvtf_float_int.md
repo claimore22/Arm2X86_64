@@ -1,0 +1,11 @@
+## SCVTF (scalar, integer)
+
+Signed integer convert to floating-point (scalar) This instruction converts the signed integer value in the general-purpose source register to a floating-point value using the rounding mode that is specified by the FPCR, and writes the result to the SIMD&FP destination register. This instruction can generate a floating-point exception. Depending on the settings in FPCR, the exception results in either a flag being set in FPSR or a synchronous exception being generated. For more information, see Floating-point exceptions and exception traps. Depending on the settings in the CPACR_EL1, CPTR_EL2, and CPTR_EL3 registers, and the current Security state and Exception level, an attempt to execute the instruction might be trapped.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_FP) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if ftype == '10' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if ftype == '11' && !IsFeatureImplemented(FEAT_FP16) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let d : integer{} = UInt(Rd); let n : integer{} = UInt(Rn); let intsize : integer{} = 32 << UInt(sf); let decode_fltsize : integer{} = 8 << UInt(ftype XOR '10'); let unsigned : boolean = FALSE;
+
+### Operation
+
+[AArch64_CheckFPEnabled](shared_pseudocode.html#func_AArch64_CheckFPEnabled_0)(); let fltsize : integer{} = if [IsMerging](shared_pseudocode.html#func_IsMerging_1)(FPCR()) then 128 else decode_fltsize; let intval : bits(intsize) = X{}(n); let rounding : [FPRounding](shared_pseudocode.html#type_FPRounding) = [FPRoundingMode](shared_pseudocode.html#func_FPRoundingMode_1)(FPCR()); let fracbits : integer = 0; var fltval : bits(fltsize) = if [IsMerging](shared_pseudocode.html#func_IsMerging_1)(FPCR()) then [V](shared_pseudocode.html#accessor_V_2){fltsize}(d) else Zeros{fltsize}; fltval[0+:decode_fltsize] = [FixedToFP](shared_pseudocode.html#func_FixedToFP_7){decode_fltsize, intsize}(intval, fracbits, unsigned, FPCR(), rounding); [V](shared_pseudocode.html#accessor_V_2){fltsize}(d) = fltval;

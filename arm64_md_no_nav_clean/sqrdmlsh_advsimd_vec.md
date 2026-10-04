@@ -1,0 +1,11 @@
+## SQRDMLSH (vector)
+
+Signed saturating rounding doubling multiply subtract returning high half (vector) This instruction multiplies the vector elements of the first source SIMD&FP register with the corresponding vector elements of the second source SIMD&FP register without saturating the multiply results, doubles the results, and subtracts the most significant half of the final results from the vector elements of the destination SIMD&FP register. The results are rounded. If any of the results overflow, they are saturated. The cumulative saturation bit, FPSR.QC, is set if saturation occurs. Depending on the settings in the CPACR_EL1, CPTR_EL2, and CPTR_EL3 registers, and the current Security state and Exception level, an attempt to execute the instruction might be trapped. It has encodings from 2 classes: [Scalar](#iclass_scalar) and [Vector](#iclass_vector)
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_RDM) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if size == '11' \|\| size == '00' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let d : integer{} = UInt(Rd); let n : integer{} = UInt(Rn); let m : integer{} = UInt(Rm); let esize : integer{} = 8 << UInt(size); let datasize : integer{} = 64 << UInt(Q); let elements : integer = datasize DIV esize; let rounding : boolean = TRUE;
+
+### Operation
+
+[AArch64_CheckFPAdvSIMDEnabled](shared_pseudocode.html#func_AArch64_CheckFPAdvSIMDEnabled_0)(); let operand1 : bits(datasize) = V{}(n); let operand2 : bits(datasize) = V{}(m); let operand3 : bits(datasize) = V{}(d); var result : bits(datasize); var element1 : integer; var element2 : integer; var element3 : integer; var accum : integer; var sat : boolean; for e = 0 to elements-1 do element1 = SInt(operand1[e\*:esize]); element2 = SInt(operand2[e\*:esize]); element3 = SInt(operand3[e\*:esize]); accum = (element3 << esize) - 2 \* (element1 \* element2); accum = [RShr](shared_pseudocode.html#func_RShr_3)(accum, esize, rounding); (result[e\*:esize], sat) = [SignedSatQ](shared_pseudocode.html#func_SignedSatQ_2){esize}(accum); if sat then FPSR().QC = '1'; end; end; [V](shared_pseudocode.html#accessor_V_2){datasize}(d) = result;

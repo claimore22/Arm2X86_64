@@ -1,0 +1,11 @@
+## LDAPUR (SIMD&FP)
+
+Load-acquire RCpc SIMD&FP register (unscaled offset) This instruction loads a SIMD&FP register from memory. The address that is used for the load is calculated from a base register value and an optional immediate offset. The instruction has memory ordering semantics as described in Load-Acquire, Load-AcquirePC, and Store-Release, except that: - There is no ordering requirement, separate from the requirements of a Load-AcquirePC or a Store-Release, created by having a Store-Release followed by a Load-AcquirePC instruction. - The reading of a value written by a Store-Release by a Load-AcquirePC instruction by the same observer does not make the write of the Store-Release globally observed. This difference in memory ordering is not described in the pseudocode. Depending on the settings in the CPACR_EL1, CPTR_EL2, and CPTR_EL3 registers, and the current Security state and Exception level, an attempt to execute the instruction might be trapped.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_FP) \|\| !IsFeatureImplemented(FEAT_LRCPC3) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if opc[1] == '1' && size != '00' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let scale : integer{} = if opc[1] == '1' then 4 else UInt(size); let offset : bits(64) = SignExtend{}(imm9);
+
+### Operation
+
+[AArch64_CheckFPAdvSIMDEnabled](shared_pseudocode.html#func_AArch64_CheckFPAdvSIMDEnabled_0)(); var address : bits(64); let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescASIMDAcqRel](shared_pseudocode.html#func_CreateAccDescASIMDAcqRel_2)([MemOp_LOAD](shared_pseudocode.html#enum_MemOp_LOAD), tagchecked); if n == 31 then [CheckSPAlignment](shared_pseudocode.html#func_CheckSPAlignment_0)(); address = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else address = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; address = [AddressAdd](shared_pseudocode.html#func_AddressAdd_3)(address, offset, accdesc); [V](shared_pseudocode.html#accessor_V_2){datasize}(t) = [Mem](shared_pseudocode.html#accessor_Mem_3){datasize}(address, accdesc);

@@ -1,0 +1,11 @@
+## FRINT64Z (scalar)
+
+Floating-point round to 64-bit integer toward zero (scalar) This instruction rounds a floating-point value in the SIMD&FP source register to an integral floating-point value that fits into a 64-bit integer size using the Round towards Zero rounding mode, and writes the result to the SIMD&FP destination register. A zero input returns a zero result with the same sign. When the result value is not numerically equal to the input value, an Inexact exception is raised. When the input is infinite, NaN or out-of-range, the instruction returns the most negative integer representable in the destination size, and an Invalid Operation floating-point exception is raised. This instruction can generate a floating-point exception. Depending on the settings in FPCR, the exception results in either a flag being set in FPSR or a synchronous exception being generated. For more information, see Floating-point exceptions and exception traps. Depending on the settings in the CPACR_EL1, CPTR_EL2, and CPTR_EL3 registers, and the current Security state and Exception level, an attempt to execute the instruction might be trapped.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_FRINTTS) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if ftype IN {'1x'} then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let d : integer{} = UInt(Rd); let n : integer{} = UInt(Rn); let esize : integer{} = 32 << UInt(ftype[0]); let intsize : integer{} = 64; let rounding : [FPRounding](shared_pseudocode.html#type_FPRounding) = [FPRounding_ZERO](shared_pseudocode.html#enum_FPRounding_ZERO);
+
+### Operation
+
+[AArch64_CheckFPEnabled](shared_pseudocode.html#func_AArch64_CheckFPEnabled_0)(); let operand : bits(esize) = V{}(n); var result : bits(128) = if [IsMerging](shared_pseudocode.html#func_IsMerging_1)(FPCR()) then [V](shared_pseudocode.html#accessor_V_2){128}(d) else Zeros{128}; result[0+:esize] = [FPRoundIntN](shared_pseudocode.html#func_FPRoundIntN_5){esize}(operand, FPCR(), rounding, intsize); [V](shared_pseudocode.html#accessor_V_2){128}(d) = result;

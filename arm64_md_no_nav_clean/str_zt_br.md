@@ -1,0 +1,11 @@
+## STR (table)
+
+Store ZT0 register This instruction stores the 64-byte ZT0 register to the memory address provided in the 64-bit scalar base register. This instruction is unpredicated. The store is performed as contiguous byte accesses, with no endian conversion and no guarantee of single-copy atomicity larger than a byte. However, if alignment is checked, then the base register must be aligned to 16 bytes. This instruction does not require the PE to be in Streaming SVE mode, and it is expected that this instruction will not experience a significant slowdown due to contention with other PEs that are executing in Streaming SVE mode.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SME2) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let n : integer = UInt(Rn);
+
+### Operation
+
+[CheckSMEEnabled](shared_pseudocode.html#func_CheckSMEEnabled_0)(); [CheckSMEZT0Enabled](shared_pseudocode.html#func_CheckSMEZT0Enabled_0)(); let elements : integer = 512 DIV 8; var addr : bits(64); let table : bits(512) = ZT0{}(); let contiguous : boolean = TRUE; let nontemporal : boolean = FALSE; let tagchecked : boolean = n != 31; let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescSME](shared_pseudocode.html#func_CreateAccDescSME_4)([MemOp_STORE](shared_pseudocode.html#enum_MemOp_STORE), nontemporal, contiguous, tagchecked); if n == 31 then [CheckSPAlignment](shared_pseudocode.html#func_CheckSPAlignment_0)(); addr = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else addr = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; let aligned : boolean = IsAlignedSize(addr, 16); if !aligned && [AlignmentEnforced](shared_pseudocode.html#func_AlignmentEnforced_0)() then let fault : [FaultRecord](shared_pseudocode.html#type_FaultRecord) = [AlignmentFault](shared_pseudocode.html#func_AlignmentFault_2)(accdesc, addr); [AArch64_Abort](shared_pseudocode.html#func_AArch64_Abort_1)(fault); end; for e = 0 to elements-1 do [AArch64_MemSingle](shared_pseudocode.html#accessor_AArch64_MemSingle_4){8}(addr, accdesc, aligned) = table[e\*:8]; addr = [AddressIncrement](shared_pseudocode.html#func_AddressIncrement_3)(addr, 1, accdesc); end;

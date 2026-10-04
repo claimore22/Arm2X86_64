@@ -1,0 +1,11 @@
+## LUTI4 (four registers, 16-bit and 32-bit)
+
+Lookup table read with 4-bit indexes (four registers) This instruction copies 16-bit or 32-bit elements from ZT0 to four destination vectors using packed 4-bit indices from a segment of the source vector register. A segment corresponds to a portion of the source vector that is consumed in order to fill the destination vector. The segment is selected by the vector segment index modulo the total number of segments. This instruction is unpredicated. It has encodings from 2 classes: [Consecutive](#iclass_consecutive) and [Strided](#iclass_strided)
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SME2p1) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if size != '01' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let esize : integer{} = 8 << UInt(size); let isize : integer{} = 4; let n : integer = UInt(Zn); let dstride : integer = 4; let d : integer = UInt(D::'00'::Zd); let imm : integer = UInt(i1); let nreg : integer{} = 4;
+
+### Operation
+
+[CheckStreamingSVEEnabled](shared_pseudocode.html#func_CheckStreamingSVEEnabled_0)(); [CheckSMEZT0Enabled](shared_pseudocode.html#func_CheckSMEZT0Enabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let elements : integer = VL DIV esize; let segments : integer = (esize DIV (isize \* nreg)) as integer{1, 2, 4, 8, 16}; let segment : integer = imm MOD segments; let indexes : bits(VL) = Z{}(n); var dst : integer = d; let table : bits(512) = ZT0{}(); for r = 0 to nreg-1 do let base : integer = (segment \* nreg + r) \* elements; var result : bits(VL); for e = 0 to elements-1 do let index : integer = UInt(indexes[(base+e)\*:isize]); result[e\*:esize] = table[index\*:32][esize-1:0]; end; [Z](shared_pseudocode.html#accessor_Z_2){VL}(dst) = result; dst = dst + dstride; end;

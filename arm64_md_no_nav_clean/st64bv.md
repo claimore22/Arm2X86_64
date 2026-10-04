@@ -1,0 +1,11 @@
+## ST64BV
+
+Single-copy atomic 64-byte store with status result This instruction stores eight 64-bit doublewords from consecutive registers to a memory location, and writes the status result of the store to a register. The store starts at register Xt, with the data being formed as Data[511:0] = X(t+7)::X(t+6)::X(t+5)::X(t+4)::X(t+3)::X(t+2)::X(t+1)::Xt. The data is stored atomically and is required to be 64-byte aligned. It is IMPLEMENTATION DEFINED which memory locations support this instruction. A memory location that supports ST64BV also supports ST64BV0. For more information, including about the memory types accessible and how the accesses are performed, see Single-copy atomic 64-byte load/store.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_LS64_V) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if Rt[4:3] == '11' \|\| Rt[0] == '1' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let withstatus : boolean = TRUE; let s : integer{} = UInt(Rs); let t : integer{} = UInt(Rt); let n : integer{} = UInt(Rn); let tagchecked : boolean = n != 31;
+
+### Operation
+
+[CheckST64BVEnabled](shared_pseudocode.html#func_CheckST64BVEnabled_0)(); var data : bits(512); var address : bits(64); var value : bits(64); let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescLS64](shared_pseudocode.html#func_CreateAccDescLS64_3)([MemOp_STORE](shared_pseudocode.html#enum_MemOp_STORE), withstatus, tagchecked); for i = 0 to 7 do value = [X](shared_pseudocode.html#accessor_X_2){64}(t+i); if [BigEndian](shared_pseudocode.html#func_BigEndian_1)(accdesc.acctype) then value = [BigEndianReverse](shared_pseudocode.html#func_BigEndianReverse_2){64}(value); end; data[63+64\*i : 64\*i] = value; end; if n == 31 then [CheckSPAlignment](shared_pseudocode.html#func_CheckSPAlignment_0)(); address = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else address = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; let status : bits(64) = [MemStore64BWithRet](shared_pseudocode.html#func_MemStore64BWithRet_3)(address, data, accdesc); if s != 31 then [X](shared_pseudocode.html#accessor_X_2){64}(s) = status; end;

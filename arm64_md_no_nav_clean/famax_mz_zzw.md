@@ -1,0 +1,11 @@
+## FAMAX
+
+Multi-vector floating-point absolute maximum This instruction determines the maximum absolute value from floating-point elements of the two or four second source vectors and the corresponding floating-point elements of the two or four first source vectors and destructively places the results in the corresponding elements of the two or four first source vectors. Regardless of the value of FPCR.AH, the behavior is as follows: - When FPCR.DN is 0, if either element is a NaN, the result is a quiet NaN. - When FPCR.DN is 1, if either element is a NaN, the result is the Default NaN, with the sign bit set to 0. - Denormalized inputs and results are never flushed to zero, as if FPCR.{FZ, FZ16, FIZ} are all 0. - Denormalized inputs never generate an Input Denormal floating-point exception. This instruction follows SME2 floating-point numerical behaviors corresponding to instructions that place their results in one or more SVE Z vectors. This instruction is unpredicated. It has encodings from 2 classes: [Two registers](#iclass_two_registers) and [Four registers](#iclass_four_registers)
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SME2) \|\| !IsFeatureImplemented(FEAT_FAMINMAX) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; if size == '00' then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let esize : integer{} = 8 << UInt(size); let dn : integer = UInt(Zdn::'00'); let m : integer = UInt(Zm::'00'); let nreg : integer{} = 4;
+
+### Operation
+
+[CheckStreamingSVEEnabled](shared_pseudocode.html#func_CheckStreamingSVEEnabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let elements : integer = VL DIV esize; var results : array [[4]] of bits(VL); for r = 0 to nreg-1 do let operand1 : bits(VL) = Z{}(dn+r); let operand2 : bits(VL) = Z{}(m+r); for e = 0 to elements-1 do let element1 : bits(esize) = operand1[e\*:esize]; let element2 : bits(esize) = operand2[e\*:esize]; results[[r]][e\*:esize] = [FPAbsMax](shared_pseudocode.html#func_FPAbsMax_4){esize}(element1, element2, FPCR()); end; end; for r = 0 to nreg-1 do [Z](shared_pseudocode.html#accessor_Z_2){VL}(dn+r) = results[[r]]; end;

@@ -1,0 +1,11 @@
+## BFMIN
+
+BFloat16 minimum (predicated) This instruction determines the minimum of active BFloat16 elements of the first source vector and the corresponding BFloat16 elements of the second source vector, and destructively places the results in the corresponding elements of the first source vector. When FPCR.AH is 0, the behavior is as follows: - Negative zero compares less than positive zero. - When FPCR.DN is 0, if either element is a NaN, the result is a quiet NaN. - When FPCR.DN is 1, if either element is a NaN, the result is Default NaN. When FPCR.AH is 1, the behavior is as follows: - If both elements are zeros, regardless of the sign of either zero, the result is the second element. - If either element is a NaN, regardless of the value of FPCR.DN, the result is the second element. Inactive elements in the destination vector register remain unmodified. This instruction follows SVE2 non-widening BFloat16 numerical behaviors. ID_AA64ZFR0_EL1.B16B16 indicates whether this instruction is implemented.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SVE_B16B16) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let g : integer = UInt(Pg); let dn : integer = UInt(Zdn); let m : integer = UInt(Zm);
+
+### Operation
+
+if IsFeatureImplemented(FEAT_SME2) then [CheckSVEEnabled](shared_pseudocode.html#func_CheckSVEEnabled_0)(); else [CheckNonStreamingSVEEnabled](shared_pseudocode.html#func_CheckNonStreamingSVEEnabled_0)(); end; let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let PL : integer{} = VL DIV 8; let elements : integer = VL DIV 16; let mask : bits(PL) = P{}(g); let operand1 : bits(VL) = Z{}(dn); let operand2 : bits(VL) = if [AnyActiveElement](shared_pseudocode.html#func_AnyActiveElement_3){PL}(mask, 16) then [Z](shared_pseudocode.html#accessor_Z_2){VL}(m) else Zeros{VL}; var result : bits(VL); for e = 0 to elements-1 do let element1 : bits(16) = operand1[e\*:16]; if [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask, e, 16) then let element2 : bits(16) = operand2[e\*:16]; result[e\*:16] = [BFMin](shared_pseudocode.html#func_BFMin_4){16}(element1, element2, FPCR()); else result[e\*:16] = element1; end; end; [Z](shared_pseudocode.html#accessor_Z_2){VL}(dn) = result;

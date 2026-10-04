@@ -1,0 +1,11 @@
+## STFMINNM, STFMINNML
+
+Atomic floating-point minimum number, without return This instruction atomically loads a 16-bit, 32-bit, or 64-bit value from memory, calculates the floating-point minimum number with the value held in a register, and stores the result back to memory. - STFMINNML stores to memory with release semantics. - STFMINNM has no release semantics. This instruction: - Disables alternative floating-point behaviors, as if FPCR.AH is 0. - Generates only the default NaN, as if FPCR.DN is 1. - Does not modify the cumulative FPSR exception bits (IDC, IXC, UFC, OFC, DZC, and IOC). - Disables trapped floating-point exceptions, as if the FPCR trap enable bits (IDE, IXE, UFE, OFE, DZE, and IOE) are all zero. For more information about memory ordering semantics, see Load-Acquire, Store-Release. For information about addressing modes, see Load/Store addressing modes.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_LSFE) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let s : integer = UInt(Rs); let n : integer = UInt(Rn); let datasize : integer{} = 8 << UInt(size); let acquire : boolean = FALSE; let release : boolean = R == '1'; let tagchecked : boolean = n != 31;
+
+### Operation
+
+[AArch64_CheckFPEnabled](shared_pseudocode.html#func_AArch64_CheckFPEnabled_0)(); var address : bits(64); var value : bits(datasize); var data : bits(datasize); let accdesc : [AccessDescriptor](shared_pseudocode.html#type_AccessDescriptor) = [CreateAccDescFPAtomicOp](shared_pseudocode.html#func_CreateAccDescFPAtomicOp_4)([MemAtomicOp_FPMINNM](shared_pseudocode.html#enum_MemAtomicOp_FPMINNM), acquire, release, tagchecked); value = [V](shared_pseudocode.html#accessor_V_2){datasize}(s); if n == 31 then [CheckSPAlignment](shared_pseudocode.html#func_CheckSPAlignment_0)(); address = [SP](shared_pseudocode.html#accessor_SP_1){64}(); else address = [X](shared_pseudocode.html#accessor_X_2){64}(n); end; let comparevalue : bits(datasize) = ARBITRARY : bits(datasize); // Irrelevant when not executing CAS data = [MemAtomic](shared_pseudocode.html#func_MemAtomic_5){datasize}(address, comparevalue, value, accdesc);

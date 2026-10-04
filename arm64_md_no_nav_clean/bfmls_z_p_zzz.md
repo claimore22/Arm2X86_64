@@ -1,0 +1,11 @@
+## BFMLS (vectors)
+
+BFloat16 fused multiply-subtract This instruction multiplies the active BFloat16 elements of the first source vector by the corresponding BFloat16 elements of the second source vector. The results are then subtracted from elements of the third source (addend) vector without intermediate rounding and destructively placed in the destination and third source (addend) vector. Inactive elements in the destination vector register remain unmodified. This instruction follows SVE2 non-widening BFloat16 numerical behaviors. ID_AA64ZFR0_EL1.B16B16 indicates whether this instruction is implemented.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SVE_B16B16) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let g : integer = UInt(Pg); let n : integer = UInt(Zn); let m : integer = UInt(Zm); let da : integer = UInt(Zda); let op1_neg : boolean = TRUE; let op3_neg : boolean = FALSE;
+
+### Operation
+
+if IsFeatureImplemented(FEAT_SME2) then [CheckSVEEnabled](shared_pseudocode.html#func_CheckSVEEnabled_0)(); else [CheckNonStreamingSVEEnabled](shared_pseudocode.html#func_CheckNonStreamingSVEEnabled_0)(); end; let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let PL : integer{} = VL DIV 8; let elements : integer = VL DIV 16; let mask : bits(PL) = P{}(g); let op1 : bits(VL) = if [AnyActiveElement](shared_pseudocode.html#func_AnyActiveElement_3){PL}(mask, 16) then [Z](shared_pseudocode.html#accessor_Z_2){VL}(n) else Zeros{VL}; let op2 : bits(VL) = if [AnyActiveElement](shared_pseudocode.html#func_AnyActiveElement_3){PL}(mask, 16) then [Z](shared_pseudocode.html#accessor_Z_2){VL}(m) else Zeros{VL}; let op3 : bits(VL) = Z{}(da); var result : bits(VL); for e = 0 to elements-1 do if [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask, e, 16) then let elem1 : bits(16) = if op1_neg then [BFNeg](shared_pseudocode.html#func_BFNeg_1)(op1[e\*:16]) else op1[e\*:16]; let elem2 : bits(16) = op2[e\*:16]; let elem3 : bits(16) = if op3_neg then [BFNeg](shared_pseudocode.html#func_BFNeg_1)(op3[e\*:16]) else op3[e\*:16]; result[e\*:16] = [BFMulAdd](shared_pseudocode.html#func_BFMulAdd_4)(elem3, elem1, elem2, FPCR()); else result[e\*:16] = op3[e\*:16]; end; end; [Z](shared_pseudocode.html#accessor_Z_2){VL}(da) = result;

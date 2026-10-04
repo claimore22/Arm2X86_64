@@ -1,0 +1,11 @@
+## BMOPS
+
+Bitwise exclusive NOR population count outer product, subtracting This instruction works with 32-bit element ZA tile. This instruction generates an outer product of the first source SVL<sub>S</sub>×1 vector and the second source 1×SVL<sub>S</sub> vector. Each outer product element is obtained as population count of the bitwise XNOR result of the corresponding 32-bit elements of the first source vector and the second source vector. Each source vector is independently predicated by a corresponding governing predicate. When either source vector element is inactive the corresponding destination tile element remains unmodified. The resulting SVL<sub>S</sub>×SVL<sub>S</sub> product is then destructively subtracted from the destination tile.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SME2) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let esize : integer{} = 32; let a : integer = UInt(Pn); let b : integer = UInt(Pm); let n : integer = UInt(Zn); let m : integer = UInt(Zm); let da : integer = UInt(ZAda);
+
+### Operation
+
+[CheckStreamingSVEAndZAEnabled](shared_pseudocode.html#func_CheckStreamingSVEAndZAEnabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let PL : integer{} = VL DIV 8; let dim : integer{} = VL DIV esize; let mask1 : bits(PL) = P{}(a); let mask2 : bits(PL) = P{}(b); let operand1 : bits(VL) = Z{}(n); let operand2 : bits(VL) = Z{}(m); let operand3 : bits(dim\*dim\*esize) = ZAtile{}(da, esize); var result : bits(dim\*dim\*esize); for row = 0 to dim-1 do let element1 : bits(esize) = operand1[row\*:esize]; for col = 0 to dim-1 do let element2 : bits(esize) = operand2[col\*:esize]; let element3 : bits(esize) = operand3[(row\*dim + col)\*:esize]; if ([ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask1, row, esize) && [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask2, col, esize)) then let res : integer = BitCount(NOT(element1 XOR element2)); result[(row\*dim + col)\*:esize] = element3 - res; else result[(row\*dim + col)\*:esize] = element3; end; end; end; [ZAtile](shared_pseudocode.html#accessor_ZAtile_3){dim\*dim\*esize}(da, esize) = result;

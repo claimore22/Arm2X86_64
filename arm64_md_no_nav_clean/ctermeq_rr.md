@@ -1,0 +1,11 @@
+## CTERMEQ, CTERMNE
+
+Compare and terminate loop This instruction detects termination conditions in serialized vector loops by testing whether the comparison between the scalar source operands holds true. If the comparison is not successful, the instruction tests the state of the !Last condition flag (C), which indicates whether the previous flag-setting predicate instruction selected the last element of the vector partition. The Z and C condition flags are preserved by this instruction. The N and V condition flags are set as a pair to generate one of the following conditions for a subsequent conditional instruction: | Condition | N | V | Meaning | |----|----|----|----| | GE | 0 | 0 | Continue loop (compare failed and last element not selected) | | LT | 0 | 1 | Terminate loop (last element selected) | | LT | 1 | 0 | Terminate loop (compare succeeded) | | GE | 1 | 1 | Never generated | The scalar source operands are 32-bit or 64-bit general-purpose registers of the same size. It has encodings from 2 classes: [Equal](#iclass_equal) and [Not equal](#iclass_not_equal)
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SVE) && !IsFeatureImplemented(FEAT_SME) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let esize : integer{} = 32 << UInt(sz); let n : integer = UInt(Rn); let m : integer = UInt(Rm); let cmp_op : [CmpOp](shared_pseudocode.html#type_CmpOp) = [Cmp_NE](shared_pseudocode.html#enum_Cmp_NE);
+
+### Operation
+
+[CheckSVEEnabled](shared_pseudocode.html#func_CheckSVEEnabled_0)(); let operand1 : bits(esize) = X{}(n); let operand2 : bits(esize) = X{}(m); let element1 : integer = UInt(operand1); let element2 : integer = UInt(operand2); var term : boolean; case cmp_op of when [Cmp_EQ](shared_pseudocode.html#enum_Cmp_EQ) => term = element1 == element2; when [Cmp_NE](shared_pseudocode.html#enum_Cmp_NE) => term = element1 != element2; end; if term then [PSTATE](shared_pseudocode.html#global_PSTATE).N = '1'; [PSTATE](shared_pseudocode.html#global_PSTATE).V = '0'; else [PSTATE](shared_pseudocode.html#global_PSTATE).N = '0'; [PSTATE](shared_pseudocode.html#global_PSTATE).V = (NOT [PSTATE](shared_pseudocode.html#global_PSTATE).C); end;

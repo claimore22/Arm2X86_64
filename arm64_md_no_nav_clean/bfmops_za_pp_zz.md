@@ -1,0 +1,11 @@
+## BFMOPS (non-widening)
+
+BFloat16 outer product, subtracting This instruction works with a 16-bit element ZA tile. This instruction generates an outer product of the first source vector and the second source vector. The first source is SVL<sub>H</sub>×1 vector and the second source is 1×SVL<sub>H</sub> vector. Each source vector is independently predicated by a corresponding governing predicate. When either source vector element is Inactive the corresponding destination tile element remains unmodified. The resulting outer product, SVL<sub>H</sub>×SVL<sub>H</sub>, is then destructively subtracted from the destination tile. This is equivalent to performing a single multiply-subtract from each of the destination tile elements. This instruction follows SME2 ZA-targeting non-widening BFloat16 numerical behaviors. ID_AA64SMFR0_EL1.B16B16 indicates whether this instruction is implemented.
+
+#### Decode
+
+if !IsFeatureImplemented(FEAT_SME_B16B16) then [EndOfDecode](shared_pseudocode.html#func_EndOfDecode_1)([Decode_UNDEF](shared_pseudocode.html#enum_Decode_UNDEF)); end; let a : integer = UInt(Pn); let b : integer = UInt(Pm); let n : integer = UInt(Zn); let m : integer = UInt(Zm); let da : integer = UInt(ZAda);
+
+### Operation
+
+[CheckStreamingSVEAndZAEnabled](shared_pseudocode.html#func_CheckStreamingSVEAndZAEnabled_0)(); let VL : integer{} = [CurrentVL](shared_pseudocode.html#func_CurrentVL_0)(); let PL : integer{} = VL DIV 8; let dim : integer{} = VL DIV 16; let mask1 : bits(PL) = P{}(a); let mask2 : bits(PL) = P{}(b); let op1 : bits(VL) = Z{}(n); let op2 : bits(VL) = Z{}(m); let op3 : bits(dim\*dim\*16) = ZAtile{}(da, 16); var result : bits(dim\*dim\*16); for row = 0 to dim-1 do for col = 0 to dim-1 do let elem2 : bits(16) = op2[col\*:16]; let elem3 : bits(16) = op3[(row\*dim+col)\*:16]; if [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask1, row, 16) && [ActivePredicateElement](shared_pseudocode.html#func_ActivePredicateElement_4){PL}(mask2, col, 16) then let elem1 : bits(16) = [BFNeg](shared_pseudocode.html#func_BFNeg_1)(op1[row\*:16]); result[(row\*dim+col)\*:16] = [BFMulAdd_ZA](shared_pseudocode.html#func_BFMulAdd_ZA_4)(elem3, elem1, elem2, FPCR()); else result[(row\*dim+col)\*:16] = elem3; end; end; end; [ZAtile](shared_pseudocode.html#accessor_ZAtile_3){dim\*dim\*16}(da, 16) = result;
