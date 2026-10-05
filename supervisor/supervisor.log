@@ -1,0 +1,444 @@
+supervisor: RETRY — heartbeat stale (1969s > 600s) with IN_PROGRESS=CBH<cc>; re-drive worker
+supervisor: state: instruction=CBH<cc> completed=17 tests=Some(true) changed=[] forbidden=[] age_s=1969 need_continue=false checkpoint=false
+supervisor: spawning: C:\\Users\\claimoar\\AppData\\Local\\hermes\\node\\node_modules\\opencode-ai\\bin\\opencode.exe run --continue -m nvidia/nvidia/nemotron-3-ultra-550b-a55b 
+
+Supervisor action: CONTINUE/RETRY. State: IN_PROGRESS=CBH<cc> completed=17 tests=Some(true). Read AI_*.md and resume the loop now.
+supervisor: opencode exit=Some(1)
+
+[stderr]
+[91m[1mError: [0mConfig file at C:\Users\claimoar\.config\opencode\opencode.jsonc is not valid JSON(C): 
+--- JSONC Input ---
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+  "small_model": "opencode/muse-spark-1.3-contributor-free",
+  "disabled_providers": [],
+  "provider": {
+    "opencode": {
+      "whitelist": [
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor-free",
+        "muse-spark-1.3-contributor-free"
+      ]
+    },
+    "ollama": {
+      "name": "OllamaLocal",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gpt-oss:20b": {
+          "name": "gpt-oss:20b-local"
+        },
+        "gpt-oss:latest": {
+          "name": "gpt-oss-local"
+        }
+      }
+    },
+	"nvidia": {
+	  "name": "NVIDIA NIM",
+	  "npm": "@ai-sdk/openai-compatible",
+	  "options": {
+		"baseURL": "https://integrate.api.nvidia.com/v1",
+		"apiKey": "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"
+	  },
+	  "models": {
+		"deepseek-ai/deepseek-v4.1-flash": {
+		  "name": "DeepSeek V4.1 Flash"
+		},
+		"z-ai/glm-5.3-flash": {
+		  "name": "Glm-5.3-flash"
+		},
+		"moonshotai/kimi-k3": {
+		  "name": "Kimi-k3"
+		},
+		"nvidia/nemotron-3.5-lightning-30b-a3b": {
+		  "name": "nemotron-3.5-lightning-30b-a3b"
+		},
+		"nvidia/nemotron-3-super-120b-a12b": {
+		  "name": "nvidia/nemotron-3-super120b"
+		},
+		"nvidia/nemotron-3-ultra-550b-a55b": {
+		  "name": "nemotron-3-ultra-550b-a55b"
+		}
+	  }
+	}s
+  }
+}
+--- Errors ---
+InvalidSymbol at line 56, column 3
+   Line 56: 	}s
+            ^
+--- End ---
+
+supervisor: RETRY — heartbeat stale (2001s > 600s) with IN_PROGRESS=CBH<cc>; re-drive worker
+supervisor: state: instruction=CBH<cc> completed=17 tests=Some(true) changed=[] forbidden=[] age_s=2001 need_continue=false checkpoint=false
+supervisor: spawning: C:\\Users\\claimoar\\AppData\\Local\\hermes\\node\\node_modules\\opencode-ai\\bin\\opencode.exe run --continue -m nvidia/nvidia/nemotron-3-ultra-550b-a55b 
+
+Supervisor action: CONTINUE/RETRY. State: IN_PROGRESS=CBH<cc> completed=17 tests=Some(true). Read AI_*.md and resume the loop now.
+supervisor: opencode exit=Some(1)
+
+[stderr]
+[91m[1mError: [0mConfig file at C:\Users\claimoar\.config\opencode\opencode.jsonc is not valid JSON(C): 
+--- JSONC Input ---
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+  "small_model": "opencode/muse-spark-1.3-contributor-free",
+  "disabled_providers": [],
+  "provider": {
+    "opencode": {
+      "whitelist": [
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor-free",
+        "muse-spark-1.3-contributor-free"
+      ]
+    },
+    "ollama": {
+      "name": "OllamaLocal",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gpt-oss:20b": {
+          "name": "gpt-oss:20b-local"
+        },
+        "gpt-oss:latest": {
+          "name": "gpt-oss-local"
+        }
+      }
+    },
+	"nvidia": {
+	  "name": "NVIDIA NIM",
+	  "npm": "@ai-sdk/openai-compatible",
+	  "options": {
+		"baseURL": "https://integrate.api.nvidia.com/v1",
+		"apiKey": "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"
+	  },
+	  "models": {
+		"deepseek-ai/deepseek-v4.1-flash": {
+		  "name": "DeepSeek V4.1 Flash"
+		},
+		"z-ai/glm-5.3-flash": {
+		  "name": "Glm-5.3-flash"
+		},
+		"moonshotai/kimi-k3": {
+		  "name": "Kimi-k3"
+		},
+		"nvidia/nemotron-3.5-lightning-30b-a3b": {
+		  "name": "nemotron-3.5-lightning-30b-a3b"
+		},
+		"nvidia/nemotron-3-super-120b-a12b": {
+		  "name": "nvidia/nemotron-3-super120b"
+		},
+		"nvidia/nemotron-3-ultra-550b-a55b": {
+		  "name": "nemotron-3-ultra-550b-a55b"
+		}
+	  }
+	}s
+  }
+}
+--- Errors ---
+InvalidSymbol at line 56, column 3
+   Line 56: 	}s
+            ^
+--- End ---
+
+supervisor: RETRY — heartbeat stale (2033s > 600s) with IN_PROGRESS=CBH<cc>; re-drive worker
+supervisor: state: instruction=CBH<cc> completed=17 tests=Some(true) changed=[] forbidden=[] age_s=2033 need_continue=false checkpoint=false
+supervisor: spawning: C:\\Users\\claimoar\\AppData\\Local\\hermes\\node\\node_modules\\opencode-ai\\bin\\opencode.exe run --continue -m nvidia/nvidia/nemotron-3-ultra-550b-a55b 
+
+Supervisor action: CONTINUE/RETRY. State: IN_PROGRESS=CBH<cc> completed=17 tests=Some(true). Read AI_*.md and resume the loop now.
+supervisor: opencode exit=Some(1)
+
+[stderr]
+[91m[1mError: [0mConfig file at C:\Users\claimoar\.config\opencode\opencode.jsonc is not valid JSON(C): 
+--- JSONC Input ---
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+  "small_model": "opencode/muse-spark-1.3-contributor-free",
+  "disabled_providers": [],
+  "provider": {
+    "opencode": {
+      "whitelist": [
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor-free",
+        "muse-spark-1.3-contributor-free"
+      ]
+    },
+    "ollama": {
+      "name": "OllamaLocal",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gpt-oss:20b": {
+          "name": "gpt-oss:20b-local"
+        },
+        "gpt-oss:latest": {
+          "name": "gpt-oss-local"
+        }
+      }
+    },
+	"nvidia": {
+	  "name": "NVIDIA NIM",
+	  "npm": "@ai-sdk/openai-compatible",
+	  "options": {
+		"baseURL": "https://integrate.api.nvidia.com/v1",
+		"apiKey": "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"
+	  },
+	  "models": {
+		"deepseek-ai/deepseek-v4.1-flash": {
+		  "name": "DeepSeek V4.1 Flash"
+		},
+		"z-ai/glm-5.3-flash": {
+		  "name": "Glm-5.3-flash"
+		},
+		"moonshotai/kimi-k3": {
+		  "name": "Kimi-k3"
+		},
+		"nvidia/nemotron-3.5-lightning-30b-a3b": {
+		  "name": "nemotron-3.5-lightning-30b-a3b"
+		},
+		"nvidia/nemotron-3-super-120b-a12b": {
+		  "name": "nvidia/nemotron-3-super120b"
+		},
+		"nvidia/nemotron-3-ultra-550b-a55b": {
+		  "name": "nemotron-3-ultra-550b-a55b"
+		}
+	  }
+	}s
+  }
+}
+--- Errors ---
+InvalidSymbol at line 56, column 3
+   Line 56: 	}s
+            ^
+--- End ---
+
+supervisor: RETRY — heartbeat stale (2065s > 600s) with IN_PROGRESS=CBH<cc>; re-drive worker
+supervisor: state: instruction=CBH<cc> completed=17 tests=Some(true) changed=[] forbidden=[] age_s=2065 need_continue=false checkpoint=false
+supervisor: spawning: C:\\Users\\claimoar\\AppData\\Local\\hermes\\node\\node_modules\\opencode-ai\\bin\\opencode.exe run --continue -m nvidia/nvidia/nemotron-3-ultra-550b-a55b 
+
+Supervisor action: CONTINUE/RETRY. State: IN_PROGRESS=CBH<cc> completed=17 tests=Some(true). Read AI_*.md and resume the loop now.
+supervisor: opencode exit=Some(1)
+
+[stderr]
+[91m[1mError: [0mConfig file at C:\Users\claimoar\.config\opencode\opencode.jsonc is not valid JSON(C): 
+--- JSONC Input ---
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+  "small_model": "opencode/muse-spark-1.3-contributor-free",
+  "disabled_providers": [],
+  "provider": {
+    "opencode": {
+      "whitelist": [
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor-free",
+        "muse-spark-1.3-contributor-free"
+      ]
+    },
+    "ollama": {
+      "name": "OllamaLocal",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gpt-oss:20b": {
+          "name": "gpt-oss:20b-local"
+        },
+        "gpt-oss:latest": {
+          "name": "gpt-oss-local"
+        }
+      }
+    },
+	"nvidia": {
+	  "name": "NVIDIA NIM",
+	  "npm": "@ai-sdk/openai-compatible",
+	  "options": {
+		"baseURL": "https://integrate.api.nvidia.com/v1",
+		"apiKey": "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"
+	  },
+	  "models": {
+		"deepseek-ai/deepseek-v4.1-flash": {
+		  "name": "DeepSeek V4.1 Flash"
+		},
+		"z-ai/glm-5.3-flash": {
+		  "name": "Glm-5.3-flash"
+		},
+		"moonshotai/kimi-k3": {
+		  "name": "Kimi-k3"
+		},
+		"nvidia/nemotron-3.5-lightning-30b-a3b": {
+		  "name": "nemotron-3.5-lightning-30b-a3b"
+		},
+		"nvidia/nemotron-3-super-120b-a12b": {
+		  "name": "nvidia/nemotron-3-super120b"
+		},
+		"nvidia/nemotron-3-ultra-550b-a55b": {
+		  "name": "nemotron-3-ultra-550b-a55b"
+		}
+	  }
+	}s
+  }
+}
+--- Errors ---
+InvalidSymbol at line 56, column 3
+   Line 56: 	}s
+            ^
+--- End ---
+
+supervisor: RETRY — heartbeat stale (2097s > 600s) with IN_PROGRESS=CBH<cc>; re-drive worker
+supervisor: state: instruction=CBH<cc> completed=17 tests=Some(true) changed=[] forbidden=[] age_s=2097 need_continue=false checkpoint=false
+supervisor: spawning: C:\\Users\\claimoar\\AppData\\Local\\hermes\\node\\node_modules\\opencode-ai\\bin\\opencode.exe run --continue -m nvidia/nvidia/nemotron-3-ultra-550b-a55b 
+
+Supervisor action: CONTINUE/RETRY. State: IN_PROGRESS=CBH<cc> completed=17 tests=Some(true). Read AI_*.md and resume the loop now.
+supervisor: opencode exit=Some(1)
+
+[stderr]
+[91m[1mError: [0mConfig file at C:\Users\claimoar\.config\opencode\opencode.jsonc is not valid JSON(C): 
+--- JSONC Input ---
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+  "small_model": "opencode/muse-spark-1.3-contributor-free",
+  "disabled_providers": [],
+  "provider": {
+    "opencode": {
+      "whitelist": [
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor-free",
+        "muse-spark-1.3-contributor-free"
+      ]
+    },
+    "ollama": {
+      "name": "OllamaLocal",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gpt-oss:20b": {
+          "name": "gpt-oss:20b-local"
+        },
+        "gpt-oss:latest": {
+          "name": "gpt-oss-local"
+        }
+      }
+    },
+	"nvidia": {
+	  "name": "NVIDIA NIM",
+	  "npm": "@ai-sdk/openai-compatible",
+	  "options": {
+		"baseURL": "https://integrate.api.nvidia.com/v1",
+		"apiKey": "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"
+	  },
+	  "models": {
+		"deepseek-ai/deepseek-v4.1-flash": {
+		  "name": "DeepSeek V4.1 Flash"
+		},
+		"z-ai/glm-5.3-flash": {
+		  "name": "Glm-5.3-flash"
+		},
+		"moonshotai/kimi-k3": {
+		  "name": "Kimi-k3"
+		},
+		"nvidia/nemotron-3.5-lightning-30b-a3b": {
+		  "name": "nemotron-3.5-lightning-30b-a3b"
+		},
+		"nvidia/nemotron-3-super-120b-a12b": {
+		  "name": "nvidia/nemotron-3-super120b"
+		},
+		"nvidia/nemotron-3-ultra-550b-a55b": {
+		  "name": "nemotron-3-ultra-550b-a55b"
+		}
+	  }
+	}s
+  }
+}
+--- Errors ---
+InvalidSymbol at line 56, column 3
+   Line 56: 	}s
+            ^
+--- End ---
+
+supervisor: RETRY — heartbeat stale (2130s > 600s) with IN_PROGRESS=CBH<cc>; re-drive worker
+supervisor: state: instruction=CBH<cc> completed=17 tests=Some(true) changed=[] forbidden=[] age_s=2130 need_continue=false checkpoint=false
+supervisor: spawning: C:\\Users\\claimoar\\AppData\\Local\\hermes\\node\\node_modules\\opencode-ai\\bin\\opencode.exe run --continue -m nvidia/nvidia/nemotron-3-ultra-550b-a55b 
+
+Supervisor action: CONTINUE/RETRY. State: IN_PROGRESS=CBH<cc> completed=17 tests=Some(true). Read AI_*.md and resume the loop now.
+supervisor: opencode exit=Some(1)
+
+[stderr]
+[91m[1mError: [0mConfig file at C:\Users\claimoar\.config\opencode\opencode.jsonc is not valid JSON(C): 
+--- JSONC Input ---
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+  "small_model": "opencode/muse-spark-1.3-contributor-free",
+  "disabled_providers": [],
+  "provider": {
+    "opencode": {
+      "whitelist": [
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor-free",
+        "muse-spark-1.3-contributor-free"
+      ]
+    },
+    "ollama": {
+      "name": "OllamaLocal",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gpt-oss:20b": {
+          "name": "gpt-oss:20b-local"
+        },
+        "gpt-oss:latest": {
+          "name": "gpt-oss-local"
+        }
+      }
+    },
+	"nvidia": {
+	  "name": "NVIDIA NIM",
+	  "npm": "@ai-sdk/openai-compatible",
+	  "options": {
+		"baseURL": "https://integrate.api.nvidia.com/v1",
+		"apiKey": "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"
+	  },
+	  "models": {
+		"deepseek-ai/deepseek-v4.1-flash": {
+		  "name": "DeepSeek V4.1 Flash"
+		},
+		"z-ai/glm-5.3-flash": {
+		  "name": "Glm-5.3-flash"
+		},
+		"moonshotai/kimi-k3": {
+		  "name": "Kimi-k3"
+		},
+		"nvidia/nemotron-3.5-lightning-30b-a3b": {
+		  "name": "nemotron-3.5-lightning-30b-a3b"
+		},
+		"nvidia/nemotron-3-super-120b-a12b": {
+		  "name": "nvidia/nemotron-3-super120b"
+		},
+		"nvidia/nemotron-3-ultra-550b-a55b": {
+		  "name": "nemotron-3-ultra-550b-a55b"
+		}
+	  }
+	}s
+  }
+}
+--- Errors ---
+InvalidSymbol at line 56, column 3
+   Line 56: 	}s
+            ^
+--- End ---
+
