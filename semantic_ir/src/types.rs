@@ -49,22 +49,24 @@ pub enum Reg {
     X(u8),
     W(u8),
     V(u8),
+    Xzr,
+    Wzr,
 }
 
 impl Reg {
     pub const fn x(index: u8) -> Option<Self> {
-        if index < 31 {
-            Some(Self::X(index))
-        } else {
-            None
+        match index {
+            0..=30 => Some(Self::X(index)),
+            31 => Some(Self::Xzr),
+            _ => None,
         }
     }
 
     pub const fn w(index: u8) -> Option<Self> {
-        if index < 31 {
-            Some(Self::W(index))
-        } else {
-            None
+        match index {
+            0..=30 => Some(Self::W(index)),
+            31 => Some(Self::Wzr),
+            _ => None,
         }
     }
 

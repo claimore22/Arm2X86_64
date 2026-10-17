@@ -181,8 +181,8 @@ fn validate_stmt(statement: &Stmt) -> Result<(), IrError> {
             validate_expr(value)?;
 
             let expected_width = match reg {
-                Reg::X(_) => BitWidth::W64,
-                Reg::W(_) => BitWidth::W32,
+                Reg::X(_) | Reg::Xzr => BitWidth::W64,
+                Reg::W(_) | Reg::Wzr => BitWidth::W32,
                 Reg::V(_) => BitWidth::W128,
             };
 

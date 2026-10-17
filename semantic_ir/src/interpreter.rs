@@ -689,23 +689,21 @@ impl Interpreter {
     fn read_reg(&self, reg: &Reg) -> u128 {
         match reg {
             Reg::X(n) => {
-                if *n == 31 {
-                    0 // XZR
-                } else if *n < 31 {
+                if *n < 31 {
                     self.state.gpr.x[*n as usize] as u128
                 } else {
                     0
                 }
             }
+            Reg::Xzr => 0,
             Reg::W(n) => {
-                if *n == 31 {
-                    0 // WZR
-                } else if *n < 31 {
+                if *n < 31 {
                     self.state.gpr.x[*n as usize] as u128 & 0xFFFF_FFFF
                 } else {
                     0
                 }
             }
+            Reg::Wzr => 0,
             Reg::V(n) => {
                 if *n < 32 {
                     self.state.simd.v[*n as usize] as u128
@@ -723,11 +721,13 @@ impl Interpreter {
                     self.state.gpr.x[*n as usize] = *value as u64;
                 }
             }
+            Reg::Xzr => {}
             Reg::W(n) => {
                 if *n < 31 {
                     self.state.gpr.x[*n as usize] = (self.state.gpr.x[*n as usize] & 0xFFFF_FFFF_0000_0000) | (*value as u64 & 0xFFFF_FFFF);
                 }
             }
+            Reg::Wzr => {}
             Reg::V(n) => {
                 if *n < 32 {
                     self.state.simd.v[*n as usize] = *value as u128;
