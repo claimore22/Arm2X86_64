@@ -7,6 +7,7 @@ pub mod shared;
 pub mod stmt;
 pub mod types;
 pub mod decode;
+pub mod codegen;
 pub mod validate;
 
 pub use expr::{BinOp, Expr, UnaryOp};
