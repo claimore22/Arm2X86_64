@@ -506,3 +506,510 @@ NGC/NGCS (SBC/SBCS via AddWithCarry with C), MOV x5 (ORR imm/reg, MOVN, MOVZ,
 ADD to/from SP), NOP (Let). MADDPT/MSUBPT use Mul+Add/Sub + `Expr::PointerAddCheck`
 (FEAT_CPA). MRS/MRRS use ReadSpecial; MSR(reg)/MSRR use WriteSpecial; MSR(imm)
 placeholder Let. No further IR extension.
+
+2026-10-06 — INCB, INCD, INCH, INCW (scalar) implemented using new `SVESpecialOp::DecodePredCount`
+to model `DecodePredCount(pat, esize)` which computes the number of active predicate elements
+for a given pattern and element size. This is an opaque architectural function (like ChkFeat,
+ChooseTag) that cannot be composed from existing IR ops. The instruction computes:
+`X[dn] = X[dn] + (DecodePredCount(pat, esize) * (imm4 + 1))`. Uses `Expr::SVESpecial` with
+operands: pattern (5-bit), esize (8-bit: 8/16/32/64 for B/H/W/D). Returns 64-bit count.
+No new IR node types needed - reuses SVESpecial. Requires FEAT_SVE/FEAT_SME. 9 focused tests
+pass (tests/incb_scalar_sve.rs).
+
+2026-10-06 — INCD, INCH, INCW (vector) implemented using same `SVESpecialOp::DecodePredCount`
+for the predicate count, then broadcasting the scalar increment to all vector elements via
+`SVESpecialOp::Dup` (which replicates a scalar across a scalable vector). The instruction computes:
+`Z[dn] = Z[dn] + splat(DecodePredCount(pat, esize) * (imm4 + 1))`. Uses `ScalableVectorMap2`
+with `Add` for element-wise addition. Esize varies: 64 (INCD), 16 (INCH), 32 (INCW).
+Reuses existing SVESpecial and ScalableVectorMap2. Requires FEAT_SVE/FEAT_SME. 6 focused tests
+pass (tests/incd_vector_sve.rs).
+
+2026-10-06 — INCP (scalar) and INCP (vector) implemented using new `SVESpecialOp::CountPred`
+to model counting true elements in a predicate register (`ActivePredicateElement` loop in
+pseudocode). This is an opaque architectural function that cannot be composed from existing
+IR ops. The scalar variant computes `X[dn] = X[dn] + CountPred(P[m])`. The vector variant
+computes `Z[dn] = Z[dn] + splat(CountPred(P[m]))` with element sizes 16/32/64 (half/word/double).
+Uses `SVESpecialOp::Dup` to broadcast the 64-bit count to vector elements, then
+`ScalableVectorMap2` with `Add`. Reuses existing SVESpecial and ScalableVectorMap2.
+Requires FEAT_SVE/FEAT_SME. 9 focused tests pass (tests/incp_scalar_sve.rs).
+
+2026-10-06 — SQINCP, UQINCP (scalar) implemented using new scalar `BinOp::SQAdd` and `BinOp::UQAdd`
+for signed/unsigned saturating addition. Reuses `SVESpecialOp::CountPred` for the predicate
+count. The instruction computes saturated addition: `X[dn] = SatQ(X[dn] + CountPred(P[m]))`.
+Vector variants use `SVEVectorBinOp::SQAdd`/`UQAdd` with `ScalableVectorMap2` for element-wise
+saturating addition. Esize varies: 16 (half), 32 (word), 64 (double). Reuses existing
+SVESpecial, Dup, and ScalableVectorMap2. Requires FEAT_SVE/FEAT_SME. 16 focused tests
+pass (tests/sqincp_sve.rs).
+
+2026-10-06 — DECB, DECD, DECH, DECW (scalar) implemented as decrement counterparts of INC.
+Uses `SVESpecialOp::DecodePredCount` for predicate constraint count, then subtracts
+`count * imm` from scalar register. Esize: 8 (B), 64 (D), 16 (H), 32 (W). Reuses
+existing BinOp::Sub and SVESpecial. Requires FEAT_SVE/FEAT_SME. 6 focused tests
+pass (tests/decb_scalar_sve.rs).
+
+2026-10-06 — DECD, DECH, DECW (vector) implemented similarly to INC vector variants.
+Uses `DecodePredCount` and `Dup` to broadcast decrement value, then element-wise
+subtraction via `ScalableVectorMap2` with `Sub`. Esize: 64 (D), 16 (H), 32 (W).
+Requires FEAT_SVE/FEAT_SME. 8 focused tests pass (tests/decb_scalar_sve.rs).
+
+2026-10-06 — DECP (scalar) and DECP (vector) implemented as decrement counterparts of INCP.
+Uses `SVESpecialOp::CountPred` for true predicate element count, then subtracts count.
+Scalar uses `BinOp::Sub`; vector uses `ScalableVectorMap2` with `Sub` and `Dup`.
+Esize: 16 (H), 32 (W), 64 (D). Requires FEAT_SVE/FEAT_SME. 8 focused tests
+pass (tests/decp_scalar_sve.rs).
+
+2026-10-06 — SQDECB/UQDECB/SQDECD/UQDECD/SQDECH/UQDECH/SQDECW/UQDECW (scalar and vector)
+implemented as saturating decrement counterparts of SQINCB/UQINCB etc.
+Uses new scalar `BinOp::SQSub`/`UQSub` and `SVEVectorBinOp::SQSub`/`UQSub` for
+signed/unsigned saturating subtraction. Reuses `DecodePredCount` for constraint count
+or `CountPred` for true element count. Esize varies per variant (B/H/W/D).
+Requires FEAT_SVE/FEAT_SME. 22 focused tests pass (tests/sqdecb_sve.rs).
+
+2026-10-06 — SQDECP, UQDECP (scalar) implemented using scalar `BinOp::SQSub`/`UQSub`
+for signed/unsigned saturating subtraction. Reuses `SVESpecialOp::CountPred` for the
+predicate true element count. The instruction computes saturated subtraction:
+`X[dn] = SatQ(X[dn] - CountPred(P[m]))`. Vector variants use
+`SVEVectorBinOp::SQSub`/`UQSub` with `ScalableVectorMap2` for element-wise
+saturating subtraction. Esize varies: 16 (half), 32 (word), 64 (double). Reuses
+existing SVESpecial, Dup, and ScalableVectorMap2. Requires FEAT_SVE/FEAT_SME. 16
+focused tests pass (tests/sqdecp_sve.rs).
+
+2026-10-06 — ADDHNB, ADDHNT (SVE) implemented using `VectorNarrowing` with `NarrowingOp::AddHN`.
+These are unpredicated narrowing operations that add pairs of 64-bit elements and
+store the high half (narrowed to 32-bit) in destination elements. ADDHNB places
+results in even elements (part=0) and zeros odd elements; ADDHNT places results
+in odd elements (part=1) preserving even elements. Uses existing VectorNarrowing
+IR node. Requires FEAT_SVE2/FEAT_SME. 6 focused tests pass (tests/addhnb_sve.rs).
+
+2026-10-06 — ADDP (SVE predicated) implemented using `ScalableVectorPairwise` with
+`SVEVectorPairwiseOp::AddP`. Adds adjacent element pairs: for even indices adds
+operand1[e]+operand1[e+1], for odd indices adds operand2[e-1]+operand2[e].
+Results interleaved into destination with merging predication. Requires FEAT_SVE2.
+2026-10-06 — ADDPL (scalar) adds predicate register size in bytes (PL/8) multiplied
+by signed immediate to general-purpose register or SP. Uses `BinOp::Add` and
+`BinOp::Mul` with PL/8 constant. Requires FEAT_SVE/FEAT_SME. 4 focused tests
+pass (tests/addp_sve.rs).
+
+2026-10-06 — ADDQV (SVE) implemented using `ScalableVectorReduce` with
+`SVEVectorReduceOp::AddQV`. Performs segment-wise reduction: divides VL-bit vector
+into 128-bit segments, sums elements at same position across all segments (with
+inactive elements treated as zero), and produces 128-bit V register result with
+one element per segment position. Uses existing ScalableVectorReduce IR node.
+Requires FEAT_SVE2p1/FEAT_SME2p1. 3 focused tests pass (tests/addqv_sve.rs).
+
+2026-10-06 — AESD (indexed, SVE) and AESD (vectors, SVE) implemented using
+`SVESpecialOp::AESInvSubBytes` for multi-vector AES single round decryption.
+Indexed variant operates on indexed elements; vector variant is unpredicated.
+Uses existing SVESpecial IR node. Requires FEAT_SVE2. 2 focused tests pass
+(tests/aesd_sve_indexed.rs, tests/aesd_sve_unpredicated.rs).
+
+2026-10-06 — AESEMC (SVE) implemented using `SVESpecialOp::AESMixColumns` for
+multi-vector AES single round encryption and mix columns. Uses existing SVESpecial
+IR node. Requires FEAT_SVE2. 2 focused tests pass (tests/aesemc_sve.rs).
+
+2026-10-06 — AESIMC (SVE) implemented using `SVESpecialOp::AESInvMixColumns` for
+AES inverse mix columns. Uses existing SVESpecial IR node. Requires FEAT_SVE2.
+1 focused test passes (tests/aesimc_sve.rs).
+
+2026-10-06 — AESMC (SVE) implemented using `SVESpecialOp::AESMixColumns` for
+AES mix columns. Uses existing SVESpecial IR node. Requires FEAT_SVE2.
+1 focused test passes (tests/aesmc_sve.rs).
+
+2026-10-06 — CNOT (SVE) implemented using `ScalableVectorMap` with
+`SVEVectorUnaryOp::Not` to logically invert boolean values (zero -> 1, non-zero -> 0)
+in each active vector element. Supports both merging and zeroing predication modes.
+Uses existing ScalableVectorMap IR node. Requires FEAT_SVE2p2/FEAT_SME2p2.
+4 focused tests pass (tests/cnot_sve.rs).
+
+2026-10-06 — COMPACT (SVE) implemented using `SVESpecialOp::Compact` to copy
+active predicate elements to consecutive positions in the destination vector,
+zeroing the remaining elements. Uses existing SVESpecial IR node with predicate
+and source vector operands. Requires FEAT_SVE/FEAT_SME2p2. 2 focused tests
+pass (tests/compact_sve.rs).
+
+2026-10-06 — CTERMEQ, CTERMNE (SVE) implemented using scalar comparison
+(`BinOp::Eq`/`BinOp::Ne`) and `Select` operations to model the termination
+condition logic. Sets N flag to 1 and V flag to 0 if comparison succeeds;
+otherwise sets N=0 and V=NOT(C). Uses existing BinOp, Select, and flag
+operations. Requires FEAT_SVE/FEAT_SME. 4 focused tests pass
+(tests/ctermeq_sve.rs).
+
+2026-10-06 — CNTB, CNTD, CNTH, CNTW (scalar) implemented using `SVESpecialOp::DecodePredCount`
+to get the predicate constraint element count, multiplied by immediate.
+Uses existing `DecodePredCount` and `BinOp::Mul`. Esize varies: 8 (B), 64 (D), 16 (H), 32 (W).
+Reuses existing SVESpecial and BinOp. Requires FEAT_SVE/FEAT_SME. 6 focused tests
+pass (tests/cntb_scalar_sve.rs).
+
+2026-10-06 — CNTP (predicate) implemented using `SVESpecialOp::CountPred` with
+both predicate mask and operand to count true elements matching the mask.
+Uses existing SVESpecial IR node. Esize varies: 16 (H), 32 (W), 64 (D).
+Requires FEAT_SVE/FEAT_SME. 8 focused tests pass (tests/cntb_scalar_sve.rs).
+
+2026-10-06 — CNTP (predicate as counter) implemented using new `SVESpecialOp::CounterToPredicate`
+to expand a 16-bit predicate counter to PL*4 bits via `CounterToPredicate(pred[15:0])`,
+then `CountPred` to count active elements up to maxelements = elements * width.
+Uses new SVESpecialOp for CounterToPredicate and existing CountPred. Requires FEAT_SVE2p1/FEAT_SME2.
+3 focused tests pass (tests/cntp_counter_sve.rs).
+
+2026-10-06 — CPY (immediate, merging/zeroing) implemented by broadcasting the immediate
+to a full vector using `SVESpecialOp::Dup`, then using `ScalableVectorMap` with new
+`SVEVectorUnaryOp::Id` (identity) to copy the broadcast value to active elements.
+Merging and zeroing predication modes handled by `ScalableVectorMap` predication.
+Uses existing SVESpecial and new Id unary op. Requires FEAT_SVE. 4 focused tests
+pass (tests/cpy_sve.rs).
+
+2026-10-06 — CPY (scalar) and CPY (SIMD&FP scalar) implemented similarly by broadcasting
+the source register value to a vector via `SVESpecialOp::Dup`, then using
+`ScalableVectorMap` with `Id` to copy with merging predication. Reuses existing
+SVESpecial and new Id unary op. Requires FEAT_SVE. 5 focused tests pass
+(tests/cpy_sve.rs).
+
+2026-10-06 — DUP (immediate) implemented using `SVESpecialOp::Dup` to replicate
+an immediate value across all vector elements. Uses existing SVESpecial with
+immediate operand. Requires FEAT_SVE/FEAT_SME. 2 focused tests
+pass (tests/dup_sve.rs).
+
+2026-10-06 — DUP (indexed) implemented using `SVESpecialOp::Dup` to extract an
+indexed element from a source vector and replicate it across all elements.
+Uses existing SVESpecial with source vector operand and immediate index.
+Requires FEAT_SVE/FEAT_SME. 2 focused tests pass (tests/dup_sve.rs).
+
+2026-10-06 — DUPM implemented using `SVESpecialOp::Dup` to broadcast a 64-bit
+logical bitmask immediate across all vector elements. Uses existing SVESpecial
+with 64-bit immediate operand. Requires FEAT_SVE/FEAT_SME. 2 focused tests
+pass (tests/dup_sve.rs).
+
+2026-10-06 — DUPQ implemented using `SVESpecialOp::Dup` to broadcast an indexed
+element within each 128-bit vector segment. Uses existing SVESpecial with
+source vector and immediate index. Requires FEAT_SVE2p1/FEAT_SME2p1. 2 focused
+tests pass (tests/dup_sve.rs).
+
+2026-10-06 — DUP (scalar) implemented using `SVESpecialOp::Dup` to broadcast
+a general-purpose register value across all vector elements. Uses existing
+SVESpecial with source register operand. Requires FEAT_SVE/FEAT_SME. 2 focused
+tests pass (tests/dup_sve.rs).
+
+2026-10-06 — F1CVT, F2CVT (SVE predicated) implemented using `SVEVectorUnaryOp::Bfloat16Cvt`
+with `ScalableVectorMap` to convert FP8 elements to BF16. F1CVT uses FPMR.LSCALE/F8S1,
+F2CVT uses FPMR.LSCALE2/F8S2. The issrc2 parameter is handled at lowering time.
+Uses existing `Bfloat16Cvt` unary op and `ScalableVectorMap` with merging predication.
+Requires FEAT_SVE2/FEAT_SME2/FEAT_FP8. 4 focused tests pass (tests/f1cvt_sve_predicated.rs,
+tests/bf1cvt_sve_predicated.rs).
+
+2026-10-06 — F1CVTLT, F2CVTLT (SVE predicated) implemented using `SVEVectorUnaryOp::Bfloat16Cvtlt`
+with `ScalableVectorMap` to convert odd-numbered 8-bit FP8 elements to BF16. F1CVTLT uses
+FPMR.LSCALE/F8S1, F2CVTLT uses FPMR.LSCALE2/F8S2. The issrc2 parameter handled at lowering.
+Uses existing `Bfloat16Cvtlt` unary op and `ScalableVectorMap` with merging predication.
+Requires FEAT_SVE2/FEAT_SME2/FEAT_FP8. 4 focused tests pass (tests/f1cvlt_sve_predicated.rs,
+tests/bf1cvlt_sve_predicated.rs).
+
+2026-10-06 — FABD (SVE predicated) implemented using `SVEVectorBinOp::Fabd` with
+`ScalableVectorMap2` for destructive absolute difference: result = |Zdn - Zm| for active
+elements, Zdn unchanged for inactive. Uses merging predication. Requires FEAT_SVE.
+2 focused tests pass (tests/fabd_sve_predicated.rs).
+
+2026-10-06 — FABS (SVE predicated) implemented using `SVEVectorUnaryOp::Fabs` with
+`ScalableVectorMap` for floating-point absolute value. Both merging (inactive keep dest)
+and zeroing (inactive set to zero) predication variants implemented.
+Requires FEAT_SVE2p2/FEAT_SME2p2. 4 focused tests pass (tests/fabs_sve_predicated.rs).
+
+2026-10-06 — FAC<cc> (SVE) implemented by adding `Facge`, `Facgt`, `Faclt`, `Faceq`, `Facle`
+variants to `SVEPredicateOp`. Uses `PredicateMap2` with vector operands to compare
+absolute values of FP elements and produce predicate results. FACGE: |Z[n]| >= |Z[m]|
+FACGT: |Z[n]| > |Z[m]|. Pseudo-instructions FACLT/FACLE swap operands. Requires FEAT_SVE.
+4 focused tests pass (tests/fac_sve.rs).
+
+2026-10-06 — FADD (SVE) implemented using `SVEVectorBinOp::Fadd` with `ScalableVectorMap2`
+for all three variants: (1) predicated destructive vector-vector add (Zdn = Zdn + Zm for active),
+(2) unpredicated vector-vector add (Zd = Zn + Zm), and (3) predicated immediate add using
+`SVESpecialOp::Dup` to broadcast FPOne/FPPointFive then `ScalableVectorMap2` with merging
+predication. Requires FEAT_SVE. 6 focused tests pass (tests/fadd_sve.rs).
+
+2026-10-06 — FADDA (SVE) implemented by adding `FAddA` to `SVEVectorReduceOp` and extending
+`ScalableVectorReduce` with optional `initial_value` field. Uses scalar V register as initial
+accumulator, adds all active vector elements in strict order low-to-high. Result to V register.
+Requires FEAT_SVE. 2 focused tests pass (tests/fadda_sve.rs).
+
+2026-10-06 — FADDP (SVE predicated) implemented using `SVEVectorPairwiseOp::FAddP` with
+`ScalableVectorPairwise`. Adds adjacent element pairs: even e uses Zdn[e]+Zdn[e+1], odd e uses
+Zm[e-1]+Zm[e]. Results interleaved into Zdn (destructive). Requires FEAT_SVE2/FEAT_SME.
+2 focused tests pass (tests/faddp_sve.rs).
+
+2026-10-06 — FADDQV (SVE) implemented by adding `FAddQVSeg` to `SVESpecialOp`. Performs
+segment-wise reduction across 128-bit quadword segments, producing 128-bit result in V register.
+Inactive elements treated as +0.0. Extended `SVESpecial` validation to handle predicate and
+return type (128-bit). Requires FEAT_SVE2p1/FEAT_SME2p1. 2 focused tests pass (tests/faddqv_sve.rs).
+
+2026-10-06 — FADDV (SVE) uses existing `SVEVectorReduceOp::FAddV` with `ScalableVectorReduce`.
+Recursive pairwise reduction to scalar in V register. Inactive elements treated as +0.0.
+Updated existing test to include new `initial_value` field. Requires FEAT_SVE. 1 test passes.
+
+2026-10-06 — FAMAX, FAMIN (SVE predicated) implemented by adding `FAMax`, `FAMin` to
+`SVEVectorBinOp`. Uses `ScalableVectorMap2` with merging predication for absolute maximum/minimum
+of complex numbers: result = max(|Zdn|, |Zm|) or min(|Zdn|, |Zm|) for active elements, Zdn
+unchanged for inactive. Requires FEAT_SVE2/FEAT_SME2/FEAT_FAMINMAX. 4 focused tests pass
+(tests/famax_famin_sve.rs).
+
+2026-10-06 — FCADD (SVE predicated) implemented using existing `SVEVectorTernaryOp::Fcadd`
+with `ScalableVectorMap3`. Complex add with 90° rotation: cross-adds real/imaginary parts
+(Zdn.real + Zm.imag, Zdn.imag + Zm.real) for active elements. Destructive on Zdn.
+Requires FEAT_SVE/FEAT_SME. 2 focused tests pass (tests/fcadd_sve.rs).
+
+2026-10-06 — FCLAMP (SVE unpredicated) implemented by adding `FClamp` to `SVEVectorTernaryOp`.
+Uses `ScalableVectorMap3` with zeroing predication (unpredicated) to clamp Z[d] between
+Z[n] (min) and Z[m] (max): result = min(max(Z[d], Z[n]), Z[m]). Destructive on Z[d].
+Requires FEAT_SVE2p1/FEAT_SME2. 2 focused tests pass (tests/fclamp_sve.rs).
+
+2026-10-06 — FCM<cc> (SVE) implemented using existing `SVEPredicateOp` variants
+(Eq, Ge, Gt, Ne, Lt, Le, Unordered) with `PredicateMap2`. Vector-to-predicate FP comparisons:
+FCMEQ (==), FCMGE (>=), FCMGT (>), FCMLE (<=, swaps operands), FCMLT (<, swaps operands),
+FCMNE (!=), FCMUO (unordered). Inactive elements set to zero. Requires FEAT_SVE/FEAT_SME.
+12 focused tests pass (tests/fcm_sve.rs).
+
+2026-10-06 — FCPY (SVE predicated) implemented using `SVESpecialOp::Dup` to broadcast
+FP immediate, then `ScalableVectorMap` with `Id` for predicated copy. Both merging (inactive
+keep dest) and zeroing (inactive set to zero) variants. Similar to CPY immediate but for FP.
+Requires FEAT_SVE/FEAT_SME. 4 focused tests pass (tests/fcpy_sve.rs).
+
+2026-10-06 — FCVT (SVE predicated) implemented using existing `SVEVectorUnaryOp::Fcvt`
+with `ScalableVectorMap` for FP precision conversion (FP32<->FP64). Source elements s_esize
+bits, dest elements d_esize bits. Smaller type unpacked in LSBs of larger. Both merging and
+zeroing predication. Requires FEAT_SVE2p2/FEAT_SME2p2. 4 focused tests pass
+(tests/fcvt_sve_predicated.rs).
+
+2026-10-06 — FCVTLT (SVE predicated) implemented using existing `SVEVectorUnaryOp::Fcvtlt`
+with `ScalableVectorMap` for widening convert of odd-numbered elements (top half). Converts
+half-precision elements to full precision (e.g., FP32->FP64). Both merging and zeroing
+predication. Requires FEAT_SVE2p2/FEAT_SME2p2. 4 focused tests pass
+(tests/fcvtlt_sve_predicated.rs).
+
+2026-10-06 — FCVTZS, FCVTZU (SVE predicated) implemented using existing
+`SVEVectorUnaryOp::Fcvtzs`/`Fcvtzu` with `ScalableVectorMap` for FP-to-integer conversion
+with rounding toward zero (truncation). FCVTZS: signed (sign-extend), FCVTZU: unsigned
+(zero-extend). Both merging and zeroing predication. Requires FEAT_SVE2p2/FEAT_SME2p2.
+8 focused tests pass (tests/fcvtz_sve_predicated.rs).
+
+2026-10-06 — FDIV, FDIVR (SVE predicated) implemented using existing
+`SVEVectorBinOp::FDiv`/`FDivR` with `ScalableVectorMap2`. FDIV: Zdn = Zdn / Zm (destructive),
+FDIVR: Zdn = Zm / Zdn (reversed, destructive). Both with merging predication.
+Requires FEAT_SVE/FEAT_SME. 4 focused tests pass (tests/fdiv_sve.rs).
+
+2026-10-06 — FDOT (SVE) implemented using existing `VectorDotOp::FP8Dot` with
+`VectorDot` expression. Two variants: (1) 2-way FP8 to FP16 - each 16-bit element holds
+pair of FP8, dot product accumulated in FP16; (2) 4-way FP8 to FP32 - each 32-bit element
+holds four FP8, dot product accumulated in FP32. Both unpredicated, use FPMR for scaling
+and format selection. Extended validation to accept esize=W16 for FP8Dot 2-way.
+Requires FEAT_FP8DOT2/FEAT_FP8DOT4/FEAT_SVE. 4 focused tests pass (tests/fdot_sve.rs).
+
+2026-10-06 — FMUL (SVE) implemented using existing `SVEVectorBinOp::Fmul` with
+`ScalableVectorMap2`. Four variants: (1) predicated destructive vector-vector multiply
+(Zdn = Zdn * Zm), (2) unpredicated vector-vector multiply (Zd = Zn * Zm), (3) predicated
+immediate multiply using `SVESpecialOp::Dup` to broadcast FPTwo/FPPointFive, (4) indexed
+multiply by element within 128-bit segment. All require FEAT_SVE. 8 focused tests pass
+(tests/fmul_sve.rs).
+
+2026-10-06 — FMULX (SVE predicated) implemented using existing `SVEVectorBinOp::FMulX`
+with `ScalableVectorMap2`. Like FMUL but ∞×0.0 gives 2.0 instead of NaN. Used with FRECPX
+for safe vector normalization. Requires FEAT_SVE. 2 focused tests pass (tests/fmulx_sve.rs).
+
+2026-10-06 — FMLA, FMLS (SVE predicated) implemented using existing
+`SVEVectorTernaryOp::Fmla`/`Fmls` with `ScalableVectorMap3`. FMLA: Zda = Zda + Zn*Zm,
+FMLS: Zda = Zda - Zn*Zm (negated first operand). Destructive on Zda (addend/destination).
+Both with merging predication. Requires FEAT_SVE. 4 focused tests pass
+(tests/fmla_fmls_sve.rs).
+
+2026-10-06 — FDUP (SVE unpredicated) implemented using `SVESpecialOp::Dup` to broadcast
+FP immediate to all vector elements. Uses `SVESpecial` expression directly (unpredicated).
+Also known as FMOV (immediate, unpredicated). Requires FEAT_SVE/FEAT_SME. 2 focused tests
+pass (tests/fdup_sve_unpredicated.rs).
+
+2026-10-06 — FEXPA (SVE unpredicated) implemented using existing
+`SVEVectorUnaryOp::Fexpa` with `ScalableVectorMap` (zeroing predication for unpredicated).
+Floating-point exponential accelerator - bit-manipulation operation returning approximate
+2^x. Requires FEAT_SVE/FEAT_SSVE_FEXPA. 1 test passes (tests/fexpa_sve_unpredicated.rs).
+
+2026-10-06 — FLOGB (SVE predicated) implemented using existing
+`SVEVectorUnaryOp::Flogb` with `ScalableVectorMap`. Returns base-2 logarithm as integer
+(unbiased exponent). Special cases: infinite→max_int, zero/NaN→min_int. Both merging and
+zeroing predication. Requires FEAT_SVE2p2/FEAT_SME2p2. 4 focused tests pass
+(tests/flogb_sve_predicated.rs).
+
+2026-10-06 — FMAX, FMIN (SVE predicated) implemented using existing
+`SVEVectorBinOp::FMax`/`FMin` with `ScalableVectorMap2`. Standard FP max/min with
+destructive update on Zdn. Merging predication. Requires FEAT_SVE/FEAT_SME. 4 focused
+tests pass (tests/fmax_fmin_sve.rs).
+
+2026-10-06 — FMAXNM, FMINNM (SVE predicated) implemented using existing
+`SVEVectorBinOp::FMaxNum`/`FMinNum` with `ScalableVectorMap2`. "Number" variants that
+return the numeric operand when one is NaN and the other is numeric. Destructive on Zdn.
+Merging predication. Requires FEAT_SVE/FEAT_SME. 4 focused tests pass
+(tests/fmaxnm_fminnm_sve.rs).
+
+2026-10-06 — FMAXP, FMINP (SVE predicated) implemented using existing
+`SVEVectorPairwiseOp::FMaxP`/`FMinP` with `ScalableVectorPairwise`. Adjacent element
+pairwise max/min: even e uses Zdn[e],Zdn[e+1]; odd e uses Zm[e-1],Zm[e]. Results
+interleaved into Zdn (destructive). Requires FEAT_SVE2/FEAT_SME. 4 focused tests pass
+(tests/fmaxp_fminp_sve.rs).
+
+2026-10-06 — FMAXNMP, FMINNMP (SVE predicated) implemented using existing
+`SVEVectorPairwiseOp::FMaxNMP`/`FMinNMP` with `ScalableVectorPairwise`. "Number" variants
+of pairwise max/min that return numeric operand when other is NaN. Destructive on Zdn.
+Requires FEAT_SVE2/FEAT_SME. 4 focused tests pass (tests/fmaxnmp_fminnmp_sve.rs).
+
+2026-10-06 — FMAXV, FMINV, FMAXQV, FMINQV, FMAXNMV, FMINNMV, FMAXNMQV, FMINNMQV (SVE)
+implemented by adding `FMaxNMV`, `FMinNMV`, `FMaxNMQV`, `FMinNMQV` to `SVEVectorReduceOp`
+and using existing `FMaxV`/`FMinV`/`FMaxQV`/`FMinQV`/`FMaxNV`/`FMinNV`. Scalar reductions
+use `ScalableVectorReduce`; quadword segment reductions to 128-bit use `SVESpecial` with
+`FAddQVSeg` (reused). Inactive treated as -Inf (FMAX), +Inf (FMIN), default NaN (number
+variants). Requires FEAT_SVE/FEAT_SVE2p1. 8 focused tests pass (tests/fmaxv_fminv_sve.rs).
+
+2026-10-06 — FMAD (SVE predicated) implemented using existing `SVEVectorTernaryOp::Fmad`
+with `ScalableVectorMap3`. FMAD: Zdn = Za + Zdn * Zm (Zdn is multiplicand AND destination,
+Za is addend, Zm is multiplier). Different from FMLA where Zda is addend. Merging predication.
+Requires FEAT_SVE/FEAT_SME. 2 focused tests pass (tests/fmad_sve.rs).
+
+2026-10-06 — FMAX/FMIN/FMAXNM/FMINNM (immediate, SVE predicated) implemented using existing
+`SVEVectorBinOp::FMax`/`FMin`/`FMaxNum`/`FMinNum` with `ScalableVectorMap2`. Immediate is
+0.0 or 1.0, broadcast via `SVESpecialOp::Dup` then merged with source. Destructive on Zdn.
+Merging predication. Requires FEAT_SVE/FEAT_SME. 8 focused tests pass
+(tests/fmaxmin_imm_sve.rs).
+
+2026-10-06 — FRECPE, FRECPX, FRECPS, FRSQRTE, FRSQRTS (SVE) implemented using existing
+`SVEVectorUnaryOp::Frecpe`/`FRecpX`/`Frsqrte` and `SVEVectorBinOp::Frecps`/`Frsqrts`.
+FRECPE/FRSQRTE: unpredicated reciprocal/sqrt estimates via `ScalableVectorMap` (zeroing).
+FRECPX: predicated reciprocal exponent via `ScalableVectorMap` (merging).
+FRECPS/FRSQRTS: unpredicated Newton-Raphson refinement steps via `ScalableVectorMap2` (zeroing).
+Requires FEAT_SVE/FEAT_SME. 10 focused tests pass (tests/frecp_frsqrt_sve.rs).
+
+2026-10-06 — FSQRT, FSCALE, FSUB, FNEG (SVE) implemented using existing
+`SVEVectorUnaryOp::Fsqrt`/`Fneg` and `SVEVectorBinOp::FScale`/`Fsub`.
+FSQRT: square root (predicated, merging). FSCALE: adjust exponent Zdn*2^Zm (predicated, merging).
+FSUB: subtract with three variants - predicated vector (destructive), unpredicated vector,
+immediate (broadcast via Dup). FNEG: negate (predicated, merging).
+Requires FEAT_SVE/FEAT_SME. 12 focused tests pass (tests/fsqrt_fscale_fsub_fneg_sve.rs).
+
+2026-10-06 — FRINT<r> family (SVE predicated) implemented using existing
+`SVEVectorUnaryOp` variants (Frintn, Frintp, Frintm, Frintz, Frinta, Frintx, Frinti,
+FRint32X, FRint32Z, FRint64X, FRint64Z) with `ScalableVectorMap`. 11 rounding mode
+variants (N, A, M, P, Z, I, X, 32X, 32Z, 64X, 64Z), each with merging and zeroing
+predication. Requires FEAT_SVE2p2/FEAT_SME2p2. 22 focused tests pass (tests/frint_sve.rs).
+
+2026-10-06 — FSUBR (SVE predicated) implemented by adding `Fsubr` to `SVEVectorBinOp`
+with `ScalableVectorMap2`. FSUBR: Zdn = Zm - Zdn (reversed), Zdn = imm - Zdn (immediate).
+Both destructive on Zdn with merging predication. Requires FEAT_SVE/FEAT_SME.
+4 focused tests pass (tests/fsubr_sve.rs).
+
+2026-10-06 — FTMAD, FTSMUL, FTSSEL (SVE unpredicated) implemented using existing
+`SVEVectorTernaryOp::Ftmad` and `SVEVectorBinOp::Ftsmul`/`Ftssel`.
+FTMAD: Zdn = Zdn * |Zm| + coefficient(imm, sign(Zm)) - Taylor series coefficient
+accumulation for sin/cos. FTSMUL: Zd = Zn^2 with sign from Zm[0]. FTSSEL: selects
+x/1.0/-x/-1.0 based on Zm[0:1] for quadrant handling. All unpredicated.
+Requires FEAT_SVE. 6 focused tests pass (tests/ftrig_sve.rs).
+
+2026-10-06 — HISTCNT, HISTSEG (SVE) implemented using existing `SVESpecialOp::Histcnt`/`Histseg`.
+HISTCNT: predicated count of Zm[i] == Zn[e] for i <= e (active elements only), zero for inactive.
+HISTSEG: unpredicated count of matches within 128-bit segments for byte elements.
+Both use `SVESpecial` with predicate for HISTCNT. Requires FEAT_SVE2. 4 focused tests pass
+(tests/histcnt_histseg_sve.rs).
+
+2026-10-06 — INDEX family (SVE unpredicated) implemented using existing `SVESpecialOp::Index`.
+Four variants: (1) immediates [imm1 + e*imm2], (2) immediate+scalar [imm + e*X[m]],
+(3) scalar+immediate [X[n] + e*imm], (4) scalars [X[n] + e*X[m]]. All use `SVESpecial`
+with Index operation. Requires FEAT_SVE/FEAT_SME. 8 focused tests pass
+(tests/index_sve.rs).
+
+2026-10-07 — LASTA, LASTB, LASTP (SVE) implemented using existing `SVESpecialOp::LastA`/`LastB`/`LastP`
+with new variants `LastA_Scalar`/`LastB_Scalar` for X register destinations (returning 64-bit
+zero-extended scalars). LASTA extracts element after last active, LASTB extracts last active,
+LASTP finds index of last true predicate element. Scalar variants write to X register (64-bit
+zero-extended), SIMD&FP variants write to V register (esize bits). LASTP writes index to X
+register. All predicated. Requires FEAT_SVE/FEAT_SME (LASTA/LASTB) and FEAT_SVE2p2 (LASTP).
+10 focused tests pass (tests/last_sve.rs).
+
+2026-10-07 — LD1B (scalar plus scalar, single register) implemented using existing
+`SVEGatherScatterOp::ContiguousLoad` with `SVEGatherScatter`. Predicated contiguous load
+of unsigned bytes with scalar base (X[n]/SP) and scalar index (X[m]). Index increments after
+each element but register not updated. Extended validation to allow 64-bit register index
+for contiguous loads. Requires FEAT_SVE. 2 focused tests pass (tests/ld1b_sve_contiguous.rs).
+
+2026-10-07 — LD1B (scalar plus immediate, single register) implemented using existing
+`SVEGatherScatterOp::ContiguousLoad` with `SVEGatherScatter`. Predicated contiguous load
+of unsigned bytes with scalar base (X[n]/SP) and immediate index (imm4, range -8 to 7).
+Extended validation to accept 4-bit immediate index for contiguous loads. Requires FEAT_SVE.
+2 focused tests pass (tests/ld1b_sve_contiguous_imm.rs).
+
+2026-10-07 — LD1H, LD1W, LD1D (scalar plus immediate, single register) implemented using existing
+`SVEGatherScatterOp::ContiguousLoad` with `SVEGatherScatter`. Predicated contiguous loads
+of unsigned halfwords (16-bit), words (32-bit), and doublewords (64-bit) with scalar base
+(X[n]/SP) and immediate index (imm4, range -8 to 7). Same pattern as LD1B but with
+different msize (16/32/64). Extended validation already accepts 4-bit immediate index.
+Requires FEAT_SVE. 2 focused tests each pass (tests/ld1h_sve_contiguous_imm.rs,
+tests/ld1w_sve_contiguous_imm.rs, tests/ld1d_sve_contiguous_imm.rs).
+
+2026-10-07 — LD1H, LD1W, LD1D (vector plus immediate) implemented using existing
+`SVEGatherScatterOp::GatherLoad` with `SVEGatherScatter`. Predicated gather loads
+of unsigned halfwords (16-bit), words (32-bit), and doublewords (64-bit) with vector base
+(Zn) and immediate index (imm5, multiple of mbytes, range 0-62/124/248). Extended validation
+to accept 5-bit immediate index for gather loads with vector base. Requires FEAT_SVE.
+2 focused tests each pass (tests/ld1h_sve_gather_imm.rs, tests/ld1w_sve_gather_imm.rs,
+tests/ld1d_sve_gather_imm.rs).
+
+2026-10-07 — LD1RB, LD1RH, LD1RW, LD1RD (SVE predicated) implemented using existing
+`SVEGatherScatterOp::ReplicateLoad` with `SVEGatherScatter`. Load and broadcast single
+element to all active vector elements. Scalar base (X[n]/SP) with immediate index (imm6,
+range 0-63). Predicated with zeroing. Extended validation to accept 6-bit immediate index.
+Requires FEAT_SVE/FEAT_SME. 8 focused tests pass (tests/ld1r_sve.rs).
+
+2026-10-07 — LD1RSB, LD1RSH, LD1RSW (SVE predicated) implemented using existing
+`SVEGatherScatterOp::ReplicateLoad` with `SVEGatherScatter`. Load and broadcast signed
+element (byte/halfword/word) to all active vector elements with sign extension.
+Scalar base (X[n]/SP) with immediate index (imm6, range 0-63). Predicated with zeroing.
+Requires FEAT_SVE/FEAT_SME. 6 focused tests pass (tests/ld1rsb_rsh_rsw_sve.rs).
+
+2026-10-07 — LD1SB, LD1SH, LD1SW (SVE) implemented using existing
+`SVEGatherScatterOp::GatherLoad`/`ContiguousLoad` with `SVEGatherScatter`.
+Load signed elements (byte/halfword/word) with sign extension.
+Variants: (1) gather with vector index (Zn + Zm), (2) contiguous with scalar index (X[m]),
+(3) contiguous with immediate index (imm4, SInt), (4) gather with immediate index (imm5).
+All use sign extension (data_unsigned: false). Predicated with zeroing.
+Requires FEAT_SVE/FEAT_SME. 10 focused tests pass (tests/ld1sb_sh_sw_sve.rs).
+
+2026-10-07 — LD2B (SVE) implemented using `SVEGatherScatterOp::ContiguousLoad` with
+`SVEGatherScatter` for scalar index variant, and `SVESpecialOp::Index` for immediate variant.
+Contiguous load of two-byte structures to two consecutive vector registers (nreg=2).
+Two variants: (1) contiguous with immediate index (imm4, SInt, range -16 to 14),
+(2) contiguous with scalar index (X[m]). Predicated with zeroing.
+Requires FEAT_SVE/FEAT_SME. 4 focused tests pass (tests/ld2b_sve.rs).
+
+2026-10-07 — LD2H, LD2W, LD2D, LD2Q (SVE) implemented using existing
+`SVEGatherScatterOp::ContiguousLoad` with `SVEGatherScatter` for scalar index variant,
+and `SVESpecialOp::Index` for immediate variant.
+Contiguous load of two-element structures (halfwords/words/doublewords/quadwords) to
+two consecutive vector registers (nreg=2).
+Four variants: immediate index (imm4, SInt, range -16 to 14) and scalar index (X[m])
+for each element size (halfword/word/doubleword/quadword). Predicated with zeroing.
+Extended validation to accept esize/msize=W128 for LD2Q.
+Requires FEAT_SVE/FEAT_SME. 16 focused tests pass (tests/ld2_hwdq_sve.rs).
+
+2026-10-07 — LD3B, LD3H, LD3W, LD3D, LD3Q, LD4B, LD4H, LD4W, LD4D, LD4Q (SVE) implemented using existing
+`SVEGatherScatterOp::ContiguousLoad` with `SVEGatherScatter` for scalar index variant,
+and `SVESpecialOp::Index` for immediate variant.
+Contiguous load of three-element (LD3) or four-element (LD4) structures to three/four
+consecutive vector registers (nreg=3/4).
+For each of 5 element sizes (byte/halfword/word/doubleword/quadword), two variants:
+immediate index (imm4, SInt, range -24 to 21 for LD3, -32 to 28 for LD4)
+and scalar index (X[m]). Predicated with zeroing.
+Extended validation to accept esize/msize=W128 for LD3Q/LD4Q.
+Requires FEAT_SVE/FEAT_SME. 40 focused tests pass (tests/ld3_ld4_sve.rs).
+
+2026-10-07 — LDFF1B, LDFF1H, LDFF1W, LDFF1D, LDFF1SB, LDFF1SH, LDFF1SW (SVE) implemented using existing
+`SVEGatherScatterOp::FirstFaultLoad` with `SVEGatherScatter`. Gather loads with
+first-faulting behavior: only first active element that faults actually faults,
+subsequent elements set to zero. Vector base (Zn) + vector index (Zm). Predicated with
+zeroing. Requires FEAT_SVE. 14 focused tests pass (tests/ldff1_gather_sve.rs).
+
+2026-10-07 — LDNF1B, LDNF1H, LDNF1W, LDNF1D, LDNF1SB, LDNF1SH, LDNF1SW (SVE) implemented using existing
+`SVEGatherScatterOp::NonFaultLoad` with `SVEGatherScatter`. Contiguous loads with
+non-faulting behavior: MemNF[] returns (data, fault) instead of faulting. Inactive
+elements set to zero. Immediate index (imm4, range -8 to 7). Predicated with zeroing.
+Requires FEAT_SVE. 14 focused tests pass (tests/ldnf1_sve.rs).
