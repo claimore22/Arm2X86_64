@@ -559,8 +559,8 @@ fn read_register_is_valid() {
 
 #[test]
 fn invalid_register_index_cannot_be_constructed() {
-    assert!(Reg::x(31).is_none());
-    assert!(Reg::w(31).is_none());
+    assert_eq!(Reg::x(31), Some(Reg::Xzr));
+    assert_eq!(Reg::w(31), Some(Reg::Wzr));
     assert!(Reg::v(32).is_none());
 }
 

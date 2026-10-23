@@ -1,0 +1,23 @@
+# Rust build output
+target/
+**/target/
+
+# Generated / downloaded reference material
+*.zip
+*.html
+Shared Pseudocode_files/
+sve_index_files/
+stanford/
+semantic_ir_import/
+audit_report_20261020/
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Temporary test artifacts
+*.tmp
+*.out

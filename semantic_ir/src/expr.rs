@@ -9,6 +9,8 @@ pub enum BinOp {
     Or,
     Xor,
     Mul,
+    Div,
+    UDiv,
 
     Shl,
     Lsr,

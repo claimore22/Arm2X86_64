@@ -1,7 +1,7 @@
 use crate::expr::{BinOp, Expr, UnaryOp};
 use crate::instruction::{DecodeExpr, DecodeSpec, DecodeStmt, Instruction};
-use crate::primitives::{SVESpecialOp, SVEPredicateOp, SVEVectorReduceOp, SVEVectorTernaryOp, SVEVectorPairwiseOp, SVEVectorBinOp};
-use crate::stmt::{MatchArm, MatchPattern, Stmt};
+use crate::primitives::{SVESpecialOp, SVEVectorReduceOp, SVEVectorTernaryOp, SVEVectorBinOp};
+use crate::stmt::{MatchPattern, Stmt};
 use crate::types::{BitWidth, Reg, ValueType, Width};
 use thiserror::Error;
 
@@ -856,7 +856,7 @@ fn validate_expr(expr: &Expr) -> Result<(), IrError> {
         }
 
         Expr::VectorDot {
-            op,
+            op: _,
             a,
             b,
             addend,
@@ -1739,6 +1739,8 @@ fn validate_binary(op: BinOp, left: &Expr, right: &Expr, result: ValueType) -> R
         BinOp::Add
         | BinOp::Sub
         | BinOp::Mul
+        | BinOp::Div
+        | BinOp::UDiv
         | BinOp::Shl
         | BinOp::Lsr
         | BinOp::Asr

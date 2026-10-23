@@ -12,6 +12,7 @@ use crate::shared::enums::{ExceptionLevel, SecurityState};
 /// These correspond to the FEAT_* identifiers used in the Stanford pseudocode
 /// Source: https://www.scs.stanford.edu/~zyedidia/arm64/shared_pseudocode.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)] // FEAT_* identifiers mirror the Arm architecture names
 pub enum ArmFeature {
     // Base architecture
     FEAT_AA64,
@@ -444,7 +445,7 @@ pub fn set_feature_registers(regs: FeatureRegisters) {
 }
 
 /// Get the global feature registers
-fn get_feature_registers() -> &'static FeatureRegisters {
+pub fn get_feature_registers() -> &'static FeatureRegisters {
     FEATURE_REGISTERS.get_or_init(FeatureRegisters::base_aarch64)
 }
 
@@ -695,7 +696,7 @@ pub fn have_el(el: ExceptionLevel) -> bool {
 ///
 /// Stanford function:
 /// ELUsingAArch32
-pub fn el_using_aarch32(el: ExceptionLevel) -> bool {
+pub fn el_using_aarch32(_el: ExceptionLevel) -> bool {
     // This project is AArch64-only, so no EL uses AArch32
     false
 }
@@ -825,7 +826,7 @@ pub fn el_is_in_host(el: ExceptionLevel, hcr_el2_e2h: bool) -> bool {
 pub fn current_security_state(
     current_el: ExceptionLevel,
     scr_el3_ns: bool,
-    is_secure_el2: bool,
+    _is_secure_el2: bool,
 ) -> SecurityState {
     if is_feature_implemented(ArmFeature::FEAT_RME) {
         // FEAT_RME: 4 security states

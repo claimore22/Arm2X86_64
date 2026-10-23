@@ -1,0 +1,37 @@
+instruction,encoding_class,bit_width,decode_status,typed_ir_status,interpreter_status,native_x86_64_status,known_limitations
+ADD (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+SUB (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+AND (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+ORR (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+EOR (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+BIC (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+ORN (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+EON (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,none
+ANDS (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,flags verified IR only
+BICS (shifted),shifted reg,W32/X64,PASS,PASS,PASS,PASS,flags verified IR only
+MOVZ,move wide,W32/X64,PASS,PASS,PASS,PASS,none
+MOVN,move wide,W32/X64,PASS,PASS,PASS,PASS,none
+MOVK,move wide,W32/X64,PASS,PASS,PASS,PASS,none
+SBFM,bitfield,W32/X64,PASS,PASS,PASS,PASS,none
+UBFM,bitfield,W32/X64,PASS,PASS,PASS,PASS,none
+BFM,bitfield,W32/X64,PASS,PASS,PASS,PASS,none
+ADD (imm),immediate,W32/X64,PASS,PASS,PASS,PASS,none
+SUB (imm),immediate,W32/X64,PASS,PASS,PASS,PASS,none
+CSEL,cond select,W32/X64,PASS,PASS,PASS,UNSUPPORTED,native not implemented
+CSINC,cond select,W32/X64,PASS,PASS,PASS,UNSUPPORTED,native not implemented
+CSINV,cond select,W32/X64,PASS,PASS,PASS,UNSUPPORTED,native not implemented
+CSNEG,cond select,W32/X64,PASS,PASS,PASS,UNSUPPORTED,native not implemented
+ADC,with carry,W32/X64,PASS,PASS,PASS,PASS,carry-in 0 native only
+SBC,with carry,W32/X64,PASS,PASS,PASS,PASS,carry-in 0 native only
+MUL,multiply,W32/X64,PASS,PASS,PASS,PASS,none
+SDIV,divide,W32/X64,PASS,PASS,PASS,PASS,none
+UDIV,divide,W32/X64,PASS,PASS,PASS,PASS,none
+ADDS,flags,W32/X64,PASS,PASS,PASS,PASS,C/V simplified
+SUBS,flags,W32/X64,PASS,PASS,PASS,PASS,C/V simplified
+CMP,flags,W32/X64,PASS,PASS,PASS,PASS,C/V simplified
+ANDI,logical imm,X64 only,PASS,PASS,PASS,PASS,W32 unsupported
+ORRI,logical imm,X64 only,PASS,PASS,PASS,PASS,W32 unsupported
+EORI,logical imm,X64 only,PASS,PASS,PASS,PASS,W32 unsupported
+ANDSI,logical imm,X64 only,PASS,PASS,PASS,PASS,W32 unsupported
+CCMP,cond cmp,W32/X64,PASS,PASS,PASS,UNSUPPORTED,native not implemented
+CCMN,cond cmp,W32/X64,PASS,PASS,PASS,UNSUPPORTED,native not implemented

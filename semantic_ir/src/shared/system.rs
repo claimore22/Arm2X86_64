@@ -5,10 +5,9 @@
 //!
 //! Stanford functions: Memory access, address translation, cache operations, etc.
 
-use crate::shared::enums::{AccessType, ConditionFlags, ExceptionLevel, FaultStatus, MemOp, PhysMemRetStatus, SecurityState, Shareability};
-use crate::shared::registers::{TCRConfig, SCTLRConfig, SystemRegisters};
-use crate::shared::bit_ops::{align, align_up};
-use core::fmt;
+use crate::shared::enums::{AccessType, ExceptionLevel, FaultStatus, MemOp, PhysMemRetStatus, SecurityState, Shareability};
+use crate::shared::registers::TCRConfig;
+use crate::shared::bit_ops::align;
 
 /// Physical address space identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,6 +76,7 @@ pub enum MemType {
 
 /// Device memory types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)] // memory attribute encoding names (nGnRnE, ...)
 pub enum DeviceType {
     nGnRnE,
     nGnRE,
@@ -471,6 +471,7 @@ pub enum ATAccess {
 
 /// Page table entry (PTE) for ARM64 translation tables
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(non_snake_case)] // is_nG mirrors the architecture's nG (not-global) bit name
 pub enum PageTableEntry {
     /// Invalid/unmapped entry
     Invalid,
@@ -515,6 +516,7 @@ pub struct PagePermissions {
 
 /// Access permissions (AP[2:0])
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(non_camel_case_types)] // access-permission names follow the architecture (RW_EL1, ...)
 pub enum AccessPermissions {
     /// No access
     None,
@@ -596,7 +598,7 @@ pub fn aarch64_branch_addr(vaddress: u64, _el: ExceptionLevel, tbi: bool) -> u64
 ///
 /// Stanford function:
 /// AddrTop
-pub fn addr_top(address: u64, is_instr: bool, el: ExceptionLevel, tcr_tbi: bool) -> u8 {
+pub fn addr_top(_address: u64, _is_instr: bool, el: ExceptionLevel, tcr_tbi: bool) -> u8 {
     if el_using_aarch32(el) {
         31
     } else if tcr_tbi {
@@ -607,12 +609,12 @@ pub fn addr_top(address: u64, is_instr: bool, el: ExceptionLevel, tcr_tbi: bool)
 }
 
 /// Helper for ELUsingAArch32 (from features)
-fn el_using_aarch32(el: ExceptionLevel) -> bool {
+fn el_using_aarch32(_el: ExceptionLevel) -> bool {
     false // AArch64 only
 }
 
 /// Stanford pseudocode: EffectiveTBI
-pub fn effective_tbi(address: u64, is_instr: bool, el: ExceptionLevel, tcr_tbi0: bool, tcr_tbi1: bool) -> bool {
+pub fn effective_tbi(_address: u64, is_instr: bool, el: ExceptionLevel, tcr_tbi0: bool, tcr_tbi1: bool) -> bool {
     if el == ExceptionLevel::EL0 {
         // EL0 uses TCR_EL1 or TCR_EL2 depending on HCR_EL2.E2H
         // Simplified: use TBI0 for data, TBI1 for instructions
@@ -1259,7 +1261,7 @@ fn ttbr_base_address(ttbr: u64, tg: u8) -> u64 {
 
 /// Extract the index for a given level from the virtual address
 fn va_index(vaddress: u64, level: u8, granule: GranuleSize, t0sz: u8) -> u64 {
-    let va_bits = 64 - t0sz as u64;
+    let _va_bits = 64 - t0sz as u64;
     let level_bits = granule.level_bits(level);
     let shift = 12 + (3 - level as usize) * level_bits as usize;
 
@@ -1299,7 +1301,7 @@ fn decode_pte(pte_raw: u64, level: u8, max_level: u8) -> PageTableEntry {
     let output_addr = (pte_raw & 0x0000_FFFF_FFFF_F000) << 12;
 
     // Memory attributes from MAIR index (bits 5:2)
-    let attr_idx = ((pte_raw >> 2) & 0xF) as u8;
+    let _attr_idx = ((pte_raw >> 2) & 0xF) as u8;
 
     // AP[2:1] bits 7:6 (bit 6 is AP[2], bit 7 is AP[1])
     let ap_bits = ((pte_raw >> 6) & 0x3) as u8;
@@ -1311,7 +1313,7 @@ fn decode_pte(pte_raw: u64, level: u8, max_level: u8) -> PageTableEntry {
     };
 
     // NS bit (bit 5) - Non-secure
-    let is_ns = (pte_raw & (1 << 5)) != 0;
+    let _is_ns = (pte_raw & (1 << 5)) != 0;
 
     // PXN bit (bit 53) - Privileged Execute Never
     let pxn = (pte_raw & (1 << 53)) != 0;
@@ -1393,7 +1395,7 @@ pub fn aarch64_page_table_walk(
         }
     };
 
-    let (ttbr, tg, sh, orgn, irgn) = if use_ttbr1 {
+    let (ttbr, tg, _sh, _orgn, _irgn) = if use_ttbr1 {
         (ttbr1, tcr_config.tg1, tcr_config.sh1, tcr_config.orgn1, tcr_config.irgn1)
     } else {
         (ttbr0, tcr_config.tg0, tcr_config.sh0, tcr_config.orgn0, tcr_config.irgn0)
@@ -1430,7 +1432,7 @@ pub fn aarch64_page_table_walk(
             PageTableEntry::Table { next_level_addr } => {
                 table_paddr = next_level_addr;
             }
-            PageTableEntry::Block { output_address, attrs, permissions, is_af, is_nG, is_sh, is_ap, is_pxn, is_uxn } => {
+            PageTableEntry::Block { output_address, attrs, permissions, is_af: _, is_nG: _, is_sh: _, is_ap: _, is_pxn: _, is_uxn: _ } => {
                 // Check access permissions
                 if !check_permissions(&permissions, accdesc) {
                     return Err(FaultRecord {
@@ -1459,7 +1461,7 @@ pub fn aarch64_page_table_walk(
                     is_external_abort: false,
                 });
             }
-            PageTableEntry::Page { output_address, attrs, permissions, is_af, is_nG, is_sh, is_ap, is_pxn, is_uxn, is_af_dirty } => {
+            PageTableEntry::Page { output_address, attrs, permissions, is_af: _, is_nG: _, is_sh: _, is_ap: _, is_pxn: _, is_uxn: _, is_af_dirty: _ } => {
                 // Check access permissions
                 if !check_permissions(&permissions, accdesc) {
                     return Err(FaultRecord {

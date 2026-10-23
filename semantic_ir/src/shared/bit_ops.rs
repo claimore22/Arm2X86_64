@@ -6,7 +6,6 @@
 //! Stanford functions: UInt, SInt, IsZero, HighestSetBit, LowestSetBit,
 //! SignExtend, ZeroExtend, Align, Replicate, Reverse, BitReverse, etc.
 
-use crate::shared::enums::{ConditionFlags, Endianness};
 use core::fmt;
 
 /// Trait for bit-vector operations on integer types
@@ -758,7 +757,7 @@ where
     // immN:NOT(imms) - concatenate imm_n with NOT(imms)
     // NOT(imms) = imms XOR 0x3F (for 6 bits)
     let not_imms = imms_val ^ 0x3F;
-    let imm_n_not_imms = ((if imm_n { 1u128 << 5 } else { 0u128 }) | (not_imms & 0x3F)) as u8;
+    let imm_n_not_imms = ((if imm_n { 1u128 << 6 } else { 0u128 }) | (not_imms & 0x3F)) as u16;
 
     // Check if immN:NOT(imms) == 0
     if imm_n_not_imms == 0 {
@@ -808,7 +807,7 @@ where
     let welem_val = welem.to_uint();
     let mask = (1u128 << esize) - 1;
     let welem_masked = welem_val & mask;
-    let r_mod = (r % esize) as u32;
+    let _r_mod = (r % esize) as u32;
     let welem_rotated_val = if r == 0 {
         welem_masked
     } else {
@@ -831,10 +830,11 @@ mod tests {
 
     #[test]
     fn test_decode_bit_masks_basic() {
-        // Test case: AND #0xFFFF0000FFFF0000 (immN=1, imms=0x2F, immr=0x10, immediate=false)
-        // This produces: 16 ones, rotated by 16, replicated twice = 0xFFFF0000FFFF0000
-        let imm_n = true;
-        let imms: u8 = 0x2F; // 47
+        // Test case: AND #0xFFFF0000FFFF0000
+        // For 64-bit register: immN=0 (N=0), imms=15 (0x0F, 16 ones), immr=16 (rotate by 16), immediate=false
+        // This produces: 16 ones at top of each 32-bit half, replicated twice = 0xFFFF0000FFFF0000
+        let imm_n = false;
+        let imms: u8 = 0x0F; // 15
         let immr: u8 = 0x10; // 16
         let immediate = false;
 
@@ -848,10 +848,10 @@ mod tests {
     #[test]
     fn test_decode_bit_masks_mov_imm() {
         // Test a known pattern: AND #0xFFFF0000FFFF0000
-        // immN=1, imms=0x2F (47), immr=0x10 (16), immediate=false
-        // This produces: 16 ones, rotated by 16, replicated twice = 0xFFFF0000FFFF0000
-        let imm_n = true;
-        let imms: u8 = 0x2F; // 47
+        // For 64-bit register: immN=0 (N=0), imms=15 (0x0F, 16 ones), immr=16 (rotate by 16), immediate=false
+        // This produces: 16 ones at top of each 32-bit half, replicated twice = 0xFFFF0000FFFF0000
+        let imm_n = false;
+        let imms: u8 = 0x0F; // 15
         let immr: u8 = 0x10; // 16
         let immediate = false;
 

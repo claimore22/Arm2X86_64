@@ -4,12 +4,16 @@
 //! that operates on the `CpuState` architectural model.
 
 use crate::expr::{BinOp, Expr, UnaryOp};
-use crate::primitives::{AddWithCarry, AtomicRMWOp, Condition, ConditionHolds};
-use crate::shared::enums::{ConditionFlags, PhysMemRetStatus, Shareability, SecurityState, ExceptionLevel, AccessType};
-use crate::shared::registers::{CpuState, GeneralRegisters, PState};
-use crate::shared::system::{AccessDescriptor, FaultRecord, MemorySystem, aarch64_translate_address, check_sp_alignment};
+use crate::primitives::AtomicRMWOp;
+use crate::shared::enums::{
+    AccessType, ConditionFlags, ExceptionLevel, SecurityState,
+};
+use crate::shared::registers::CpuState;
+use crate::shared::system::{
+    aarch64_translate_address, check_sp_alignment, AccessDescriptor, FaultRecord,
+};
 use crate::stmt::Stmt;
-use crate::types::{BitWidth, Flag, MemSize, Reg, SpecialReg, ValueType, Width};
+use crate::types::{BitWidth, Flag, MemSize, Reg, SpecialReg};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Error)]
@@ -63,7 +67,10 @@ impl Interpreter {
     }
 
     /// Execute a full instruction (sequence of statements)
-    pub fn execute_instruction(&mut self, instr: &crate::instruction::Instruction) -> InterpreterResult<()> {
+    pub fn execute_instruction(
+        &mut self,
+        instr: &crate::instruction::Instruction,
+    ) -> InterpreterResult<()> {
         self.branch_taken = None;
         for stmt in &instr.semantics {
             self.execute_stmt(stmt)?;
@@ -99,7 +106,9 @@ impl Interpreter {
                 let target_addr = self.expr_to_u64(&addr)?;
                 self.branch_taken = Some(target_addr);
                 self.state.gpr.write_pc(target_addr);
-                Err(InterpreterError::BranchTaken { target: target_addr })
+                Err(InterpreterError::BranchTaken {
+                    target: target_addr,
+                })
             }
             Stmt::BranchConditional { condition, target } => {
                 let cond_val = self.eval_expr(condition)?;
@@ -109,12 +118,18 @@ impl Interpreter {
                     let target_addr = self.expr_to_u64(&addr)?;
                     self.branch_taken = Some(target_addr);
                     self.state.gpr.write_pc(target_addr);
-                    Err(InterpreterError::BranchTaken { target: target_addr })
+                    Err(InterpreterError::BranchTaken {
+                        target: target_addr,
+                    })
                 } else {
                     Ok(())
                 }
             }
-            Stmt::If { condition, then_body, else_body } => {
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
                 let cond_val = self.eval_expr(condition)?;
                 let taken = self.expr_to_bool(&cond_val)?;
                 let body = if taken { then_body } else { else_body };
@@ -126,13 +141,13 @@ impl Interpreter {
                 }
                 Ok(())
             }
-            Stmt::Let { name, value } => {
+            Stmt::Let { name: _, value } => {
                 // For interpreter, we don't need to track local variables
                 // They're only used during expression evaluation
                 let _ = self.eval_expr(value)?;
                 Ok(())
             }
-            Stmt::Assign { name, value } => {
+            Stmt::Assign { name: _, value } => {
                 let _ = self.eval_expr(value)?;
                 Ok(())
             }
@@ -140,12 +155,18 @@ impl Interpreter {
                 let _ = self.eval_expr(value)?;
                 Ok(())
             }
-            Stmt::While { condition, body, max_iterations } => {
+            Stmt::While {
+                condition,
+                body,
+                max_iterations,
+            } => {
                 let mut iter = 0;
                 let max_iter = max_iterations.unwrap_or(1000);
                 loop {
                     if iter >= max_iter {
-                        return Err(InterpreterError::Unsupported("Max iterations exceeded in While".into()));
+                        return Err(InterpreterError::Unsupported(
+                            "Max iterations exceeded in While".into(),
+                        ));
                     }
                     let cond_val = self.eval_expr(condition)?;
                     let taken = self.expr_to_bool(&cond_val)?;
@@ -155,7 +176,9 @@ impl Interpreter {
                     for stmt in body {
                         self.execute_stmt(stmt)?;
                         if self.branch_taken.is_some() {
-                            return Err(InterpreterError::Unsupported("Branch in While loop not supported".into()));
+                            return Err(InterpreterError::Unsupported(
+                                "Branch in While loop not supported".into(),
+                            ));
                         }
                     }
                     iter += 1;
@@ -190,43 +213,72 @@ impl Interpreter {
                 }
                 Ok(())
             }
-            Stmt::AssignPlace { place, value } => {
+            Stmt::AssignPlace { place: _, value } => {
                 // This is complex - for now just evaluate the value
                 let _ = self.eval_expr(value)?;
                 // TODO: Implement place assignment (register slices, etc.)
                 Ok(())
             }
-            Stmt::RaiseException(exc) => {
-                Err(InterpreterError::Unsupported(format!("RaiseException: {:?}", exc)))
-            }
-            Stmt::MemWrite { address, value, size, access: _, ordering: _ } => {
+            Stmt::RaiseException(exc) => Err(InterpreterError::Unsupported(format!(
+                "RaiseException: {:?}",
+                exc
+            ))),
+            Stmt::MemWrite {
+                address,
+                value,
+                size,
+                access: _,
+                ordering: _,
+            } => {
                 let addr = self.eval_expr(address)?;
                 let val = self.eval_expr(value)?;
                 let sz: MemSize = *size;
                 self.memory_write(addr, val, sz)?;
                 Ok(())
             }
-            Stmt::MemRead { address, dest, size, access: _, ordering: _ } => {
+            Stmt::MemRead {
+                address,
+                dest,
+                size,
+                access: _,
+                ordering: _,
+            } => {
                 let addr = self.eval_expr(address)?;
                 let sz: MemSize = *size;
                 let val = self.memory_read(addr, sz)?;
                 self.write_reg(dest, &val);
                 Ok(())
             }
-            Stmt::WriteSpecial { reg, value, width: _ } => {
+            Stmt::WriteSpecial {
+                reg,
+                value,
+                width: _,
+            } => {
                 let val = self.eval_expr(value)?;
                 self.write_special(reg, &val);
                 Ok(())
             }
-            Stmt::WritePredReg { reg: _, value, pl: _ } => {
+            Stmt::WritePredReg {
+                reg: _,
+                value,
+                pl: _,
+            } => {
                 let _ = self.eval_expr(value)?;
                 Ok(())
             }
-            Stmt::WriteScalableVecReg { reg: _, value, vl: _ } => {
+            Stmt::WriteScalableVecReg {
+                reg: _,
+                value,
+                vl: _,
+            } => {
                 let _ = self.eval_expr(value)?;
                 Ok(())
             }
-            Stmt::WriteIndexedReg { index, value, width: _ } => {
+            Stmt::WriteIndexedReg {
+                index,
+                value,
+                width: _,
+            } => {
                 let _ = self.eval_expr(index)?;
                 let _ = self.eval_expr(value)?;
                 Ok(())
@@ -243,7 +295,12 @@ impl Interpreter {
             Expr::ReadSP { width: _ } => Ok(self.state.gpr.read_sp() as u128),
             Expr::ReadSpecial { reg, width: _ } => Ok(self.read_special(reg)),
             Expr::ReadFlag { flag } => Ok(if self.read_flag(flag) { 1 } else { 0 }),
-            Expr::Binary { op, left, right, ty: _ } => {
+            Expr::Binary {
+                op,
+                left,
+                right,
+                ty: _,
+            } => {
                 let l = self.eval_expr(left)?;
                 let r = self.eval_expr(right)?;
                 self.eval_binop(op, l, r)
@@ -252,7 +309,12 @@ impl Interpreter {
                 let v = self.eval_expr(value)?;
                 self.eval_unary_op(op, v)
             }
-            Expr::Select { condition, when_true, when_false, ty: _ } => {
+            Expr::Select {
+                condition,
+                when_true,
+                when_false,
+                ty: _,
+            } => {
                 let cond = self.eval_expr(condition)?;
                 let taken = cond != 0;
                 if taken {
@@ -280,28 +342,45 @@ impl Interpreter {
                     crate::primitives::Condition::Al => crate::shared::enums::Condition::AL,
                     crate::primitives::Condition::Nv => crate::shared::enums::Condition::NV,
                 };
-                Ok(if self.state.pstate.condition_holds(cond) { 1u128 } else { 0u128 })
+                Ok(if self.state.pstate.condition_holds(cond) {
+                    1u128
+                } else {
+                    0u128
+                })
             }
-            Expr::AddWithCarry { left, right, carry, width } => {
+            Expr::AddWithCarry {
+                left,
+                right,
+                carry,
+                width,
+            } => {
                 let l = self.eval_expr(left)?;
                 let r = self.eval_expr(right)?;
                 let c = self.eval_expr(carry)? != 0;
                 let bw = *width;
                 let (result, flags) = self.add_with_carry(l, r, c, bw)?;
-                // Return tuple as packed value: result | (flags as u128) << 64
-                // For interpreter, we'll just return result; flags are handled via WriteFlag statements
-                Ok(result)
+                // Pack result and flags into a single u128 for tuple extraction
+                // result in lower bits, flags in upper 8 bits (NZCV)
+                let nzcv = ((flags.n as u128) << 3) | ((flags.z as u128) << 2) | ((flags.c as u128) << 1) | (flags.v as u128);
+                let packed = result | (nzcv << 64);
+                Ok(packed)
             }
-            Expr::TupleElement { value, index, ty: _ } => {
+            Expr::TupleElement {
+                value,
+                index,
+                ty: _,
+            } => {
                 let val = self.eval_expr(value)?;
                 match index {
-                    0 => Ok(val), // result
+                    0 => Ok(val & ((1u128 << 64) - 1)), // result (lower 64 bits)
                     1 => {
-                        // NZCV flags - this should not happen in correct lowering
-                        // (flags are extracted via nzcv_writeback -> WriteFlag)
-                        Ok(0)
+                        // NZCV flags packed in upper bits
+                        Ok((val >> 64) & 0xF) // extract NZCV (4 bits)
                     }
-                    _ => Err(InterpreterError::TypeError(format!("Invalid tuple index: {}", index))),
+                    _ => Err(InterpreterError::TypeError(format!(
+                        "Invalid tuple index: {}",
+                        index
+                    ))),
                 }
             }
             Expr::ZeroExtend { value, to } => {
@@ -320,9 +399,13 @@ impl Interpreter {
                         // For other expressions, default to target width
                         _ => bits,
                     };
-                    
+
                     let sign_bit = (v >> (src_bits - 1)) & 1;
-                    let mask = if bits == 128 { !0u128 } else { (1u128 << bits) - 1 };
+                    let mask = if bits == 128 {
+                        !0u128
+                    } else {
+                        (1u128 << bits) - 1
+                    };
                     if sign_bit == 1 {
                         // Sign extend: replicate sign bit to all higher bits up to target width
                         let ext_mask = (!0u128 << src_bits) & mask;
@@ -345,13 +428,21 @@ impl Interpreter {
                 };
                 Ok((v >> *lsb) & mask)
             }
-            Expr::Concat { high, low, width: _ } => {
+            Expr::Concat {
+                high,
+                low,
+                width: _,
+            } => {
                 let h = self.eval_expr(high)?;
                 let l = self.eval_expr(low)?;
                 // Assume low is 64 bits for now
                 Ok((h << 64) | l)
             }
-            Expr::Replicate { value, count, element_width } => {
+            Expr::Replicate {
+                value,
+                count,
+                element_width,
+            } => {
                 let v = self.eval_expr(value)?;
                 let mut result = 0u128;
                 let elem_bits = element_width.bits();
@@ -360,26 +451,44 @@ impl Interpreter {
                 }
                 Ok(result)
             }
-            Expr::Shift { kind, value, amount, ty: _ } => {
+            Expr::Shift {
+                kind,
+                value,
+                amount,
+                ty,
+            } => {
                 let v = self.eval_expr(value)?;
                 let a = self.eval_expr(amount)?;
-                self.eval_shift(kind, v, a)
+                self.eval_shift(kind, v, a, *ty)
             }
             Expr::Extend { kind, value, to } => {
                 let v = self.eval_expr(value)?;
                 self.eval_extend(kind, v, *to)
             }
-            Expr::ExtendReg { register, kind, shift, to } => {
+            Expr::ExtendReg {
+                register,
+                kind,
+                shift,
+                to,
+            } => {
                 // Simplified: read the register and extend
                 let reg_val = match &**register {
                     Expr::ReadReg { reg, .. } => self.read_reg(reg),
                     Expr::Const { value, .. } => *value,
-                    _ => return Err(InterpreterError::UnimplementedExpr("ExtendReg with complex register".into())),
+                    _ => {
+                        return Err(InterpreterError::UnimplementedExpr(
+                            "ExtendReg with complex register".into(),
+                        ))
+                    }
                 };
                 let shift_val = self.eval_expr(shift)?;
                 self.eval_extend_reg(kind, reg_val, shift_val, *to)
             }
-            Expr::If { cond, then_branch, else_branch } => {
+            Expr::If {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
                 let c = self.eval_expr(cond)?;
                 if c != 0 {
                     self.eval_expr(then_branch)
@@ -391,55 +500,81 @@ impl Interpreter {
                 // Handle intrinsic calls
                 self.eval_call(func, args)
             }
-            Expr::FieldAccess { base, field } => {
+            Expr::FieldAccess { base: _, field } => {
                 // Handle PSTATE field access
                 if field == "PSTATE" {
                     // Return a dummy value - actual field access happens via ReadFlag
                     Ok(0)
                 } else {
-                    Err(InterpreterError::UnimplementedExpr(format!("FieldAccess: {}", field)))
+                    Err(InterpreterError::UnimplementedExpr(format!(
+                        "FieldAccess: {}",
+                        field
+                    )))
                 }
             }
             Expr::Slice { value, lsb, msb } => {
                 let v = self.eval_expr(value)?;
                 let width = *msb - *lsb + 1;
-                let mask = if width >= 128 { !0u128 } else { (1u128 << width) - 1 };
+                let mask = if width >= 128 {
+                    !0u128
+                } else {
+                    (1u128 << width) - 1
+                };
                 Ok((v >> *lsb) & mask)
             }
-            Expr::GenericPrim { name, type_args, args } => {
-                self.eval_generic_prim(name, type_args, args)
-            }
+            Expr::GenericPrim {
+                name,
+                type_args,
+                args,
+            } => self.eval_generic_prim(name, type_args, args),
             Expr::ChkFeat { value } => {
                 let _ = self.eval_expr(value)?;
                 Ok(1) // Assume feature present
             }
-            Expr::Crc32 { acc, value, data_width, crc32c } => {
+            Expr::Crc32 {
+                acc,
+                value,
+                data_width: _,
+                crc32c: _,
+            } => {
                 let a = self.eval_expr(acc)?;
-                let v = self.eval_expr(value)?;
+                let _v = self.eval_expr(value)?;
                 // Simplified CRC32 - just return accumulator
                 Ok(a)
             }
             Expr::ReadPredReg { reg: _, pl: _ } => Ok(0),
             Expr::ReadScalableVecReg { reg: _, vl: _ } => Ok(0),
             Expr::WritePredReg { .. } | Expr::WriteScalableVecReg { .. } => Ok(0),
-            Expr::PredicateMap { .. } | Expr::PredicateMap2 { .. } | Expr::PredicateReduce { .. } => Ok(0),
-            Expr::ScalableVectorMap { .. } | Expr::ScalableVectorMap2 { .. } | Expr::ScalableVectorMap3 { .. } => Ok(0),
+            Expr::PredicateMap { .. }
+            | Expr::PredicateMap2 { .. }
+            | Expr::PredicateReduce { .. } => Ok(0),
+            Expr::ScalableVectorMap { .. }
+            | Expr::ScalableVectorMap2 { .. }
+            | Expr::ScalableVectorMap3 { .. } => Ok(0),
             Expr::ScalableVectorReduce { .. } | Expr::ScalableVectorPairwise { .. } => Ok(0),
             Expr::SVEGatherScatter { .. } | Expr::SVESpecial { .. } => Ok(0),
             Expr::VectorMap { .. } | Expr::VectorMap2 { .. } => Ok(0),
-            Expr::VectorReduce { .. } | Expr::VectorPairwise { .. } | Expr::VectorPerm { .. } => Ok(0),
+            Expr::VectorReduce { .. } | Expr::VectorPairwise { .. } | Expr::VectorPerm { .. } => {
+                Ok(0)
+            }
             Expr::VectorNarrowing { .. } | Expr::VectorDot { .. } => Ok(0),
             Expr::VectorDeinterleave { .. } | Expr::VectorInterleave { .. } => Ok(0),
             Expr::MemRead { address, size } => {
                 let addr = self.eval_expr(address)?;
                 self.memory_read(addr, *size)
             }
-            Expr::MemAtomic { address, expected, new_value, size, ordering: _ } => {
+            Expr::MemAtomic {
+                address,
+                expected,
+                new_value,
+                size,
+                ordering: _,
+            } => {
                 let addr = self.eval_expr(address)?;
                 let exp = self.eval_expr(expected)?;
                 let new_val = self.eval_expr(new_value)?;
                 let sz: MemSize = *size;
-                
+
                 // Perform atomic compare-and-swap
                 let old_val = self.memory_read(addr, sz)?;
                 if old_val == exp {
@@ -447,11 +582,17 @@ impl Interpreter {
                 }
                 Ok(old_val)
             }
-            Expr::MemAtomicRMW { op, address, value, size, ordering: _ } => {
+            Expr::MemAtomicRMW {
+                op,
+                address,
+                value,
+                size,
+                ordering: _,
+            } => {
                 let addr = self.eval_expr(address)?;
                 let val = self.eval_expr(value)?;
                 let sz: MemSize = *size;
-                
+
                 // Perform atomic read-modify-write
                 let old_val = self.memory_read(addr, sz)?;
                 let new_val = self.eval_atomic_rmw(*op, old_val, val, sz)?;
@@ -471,6 +612,8 @@ impl Interpreter {
             Or => l | r,
             Xor => l ^ r,
             Mul => l.wrapping_mul(r),
+            Div => if r == 0 { 0 } else { (l as i128 / r as i128) as u128 },
+            UDiv => if r == 0 { 0 } else { l / r },
             Shl => l << (r as u32),
             Lsr => l >> (r as u32),
             Asr => {
@@ -479,37 +622,93 @@ impl Interpreter {
                 if l & (1u128 << (bits - 1)) != 0 {
                     // Sign bit set - fill with 1s
                     let shift = r as u32;
-                    if shift >= bits { !0u128 } else { (l as i128 >> shift) as u128 }
+                    if shift >= bits {
+                        !0u128
+                    } else {
+                        (l as i128 >> shift) as u128
+                    }
                 } else {
                     l >> (r as u32)
                 }
             }
-            Eq => if l == r { 1 } else { 0 },
-            Ne => if l != r { 1 } else { 0 },
+            Eq => {
+                if l == r {
+                    1
+                } else {
+                    0
+                }
+            }
+            Ne => {
+                if l != r {
+                    1
+                } else {
+                    0
+                }
+            }
             LtSigned => {
                 let li = l as i128;
                 let ri = r as i128;
-                if li < ri { 1 } else { 0 }
+                if li < ri {
+                    1
+                } else {
+                    0
+                }
             }
-            LtUnsigned => if l < r { 1 } else { 0 },
+            LtUnsigned => {
+                if l < r {
+                    1
+                } else {
+                    0
+                }
+            }
             LeSigned => {
                 let li = l as i128;
                 let ri = r as i128;
-                if li <= ri { 1 } else { 0 }
+                if li <= ri {
+                    1
+                } else {
+                    0
+                }
             }
-            LeUnsigned => if l <= r { 1 } else { 0 },
+            LeUnsigned => {
+                if l <= r {
+                    1
+                } else {
+                    0
+                }
+            }
             GtSigned => {
                 let li = l as i128;
                 let ri = r as i128;
-                if li > ri { 1 } else { 0 }
+                if li > ri {
+                    1
+                } else {
+                    0
+                }
             }
-            GtUnsigned => if l > r { 1 } else { 0 },
+            GtUnsigned => {
+                if l > r {
+                    1
+                } else {
+                    0
+                }
+            }
             GeSigned => {
                 let li = l as i128;
                 let ri = r as i128;
-                if li >= ri { 1 } else { 0 }
+                if li >= ri {
+                    1
+                } else {
+                    0
+                }
             }
-            GeUnsigned => if l >= r { 1 } else { 0 },
+            GeUnsigned => {
+                if l >= r {
+                    1
+                } else {
+                    0
+                }
+            }
             SQAdd | UQAdd => {
                 // Saturating add - simplified
                 l.saturating_add(r)
@@ -530,29 +729,74 @@ impl Interpreter {
         })
     }
 
-    fn eval_shift(&self, kind: &crate::primitives::ShiftKind, v: u128, a: u128) -> InterpreterResult<u128> {
+    fn eval_shift(
+        &self,
+        kind: &crate::primitives::ShiftKind,
+        v: u128,
+        a: u128,
+        ty: crate::types::BitWidth,
+    ) -> InterpreterResult<u128> {
         use crate::primitives::ShiftKind;
+        let bits = ty.bits() as u32;
+        let mask: u128 = if bits == 64 {
+            u64::MAX as u128
+        } else {
+            (1u128 << bits) - 1
+        };
+        let v = v & mask;
         let shift = a as u32;
         Ok(match kind {
-            ShiftKind::Lsl => v << shift,
-            ShiftKind::Lsr => v >> shift,
-            ShiftKind::Asr => {
-                let bits = 128; // TODO
-                if v & (1u128 << (bits - 1)) != 0 {
-                    if shift >= bits { !0u128 } else { (v as i128 >> shift) as u128 }
+            ShiftKind::Lsl => {
+                if shift >= bits {
+                    0
                 } else {
-                    v >> shift
+                    (v << shift) & mask
+                }
+            }
+            ShiftKind::Lsr => {
+                if shift >= bits {
+                    0
+                } else {
+                    (v >> shift) & mask
+                }
+            }
+            ShiftKind::Asr => {
+                if shift >= bits {
+                    if v & (1u128 << (bits - 1)) != 0 {
+                        mask
+                    } else {
+                        0
+                    }
+                } else {
+                    let signed: i128 = if bits == 64 {
+                        (v as i64) as i128
+                    } else {
+                        (v as i32) as i128
+                    };
+                    ((signed >> shift) as u128) & mask
                 }
             }
             ShiftKind::Ror => {
-                let bits = 128; // TODO
-                let shift = shift % bits;
-                if shift == 0 { v } else { (v >> shift) | (v << (bits - shift)) }
+                if bits == 0 {
+                    v
+                } else {
+                    let sh = shift % bits;
+                    if sh == 0 {
+                        v
+                    } else {
+                        ((v >> sh) | (v << (bits - sh))) & mask
+                    }
+                }
             }
         })
     }
 
-    fn eval_extend(&self, kind: &crate::primitives::ExtendKind, v: u128, to: BitWidth) -> InterpreterResult<u128> {
+    fn eval_extend(
+        &self,
+        kind: &crate::primitives::ExtendKind,
+        v: u128,
+        to: BitWidth,
+    ) -> InterpreterResult<u128> {
         use crate::primitives::ExtendKind;
         let bits = to.bits();
         let src_bits = match kind {
@@ -561,10 +805,21 @@ impl Interpreter {
             ExtendKind::Uxtw | ExtendKind::Sxtw => 32,
             ExtendKind::Uxtx | ExtendKind::Sxtx => 64,
         };
-        let mask = if src_bits == 128 { !0u128 } else { (1u128 << src_bits) - 1 };
+        let mask = if src_bits == 128 {
+            !0u128
+        } else {
+            (1u128 << src_bits) - 1
+        };
         let v = v & mask;
-        let target_mask = if bits == 128 { !0u128 } else { (1u128 << bits) - 1 };
-        if matches!(kind, ExtendKind::Sxtb | ExtendKind::Sxth | ExtendKind::Sxtw | ExtendKind::Sxtx) {
+        let target_mask = if bits == 128 {
+            !0u128
+        } else {
+            (1u128 << bits) - 1
+        };
+        if matches!(
+            kind,
+            ExtendKind::Sxtb | ExtendKind::Sxth | ExtendKind::Sxtw | ExtendKind::Sxtx
+        ) {
             // Sign extend
             let sign_bit = (v >> (src_bits - 1)) & 1;
             if sign_bit == 1 {
@@ -577,7 +832,13 @@ impl Interpreter {
         }
     }
 
-    fn eval_extend_reg(&self, kind: &crate::primitives::ExtendKind, reg_val: u128, shift: u128, to: crate::types::Width) -> InterpreterResult<u128> {
+    fn eval_extend_reg(
+        &self,
+        kind: &crate::primitives::ExtendKind,
+        reg_val: u128,
+        shift: u128,
+        to: crate::types::Width,
+    ) -> InterpreterResult<u128> {
         // Shift the register value first
         let shifted = reg_val << shift;
         let bits = match to {
@@ -598,20 +859,32 @@ impl Interpreter {
                 Ok(v)
             }
             "ZeroExtend" => {
-                let v = self.eval_expr(&args[0])?;
-                let to = args.get(1).and_then(|e| match e {
-                    Expr::Const { value, ty } => Some(*ty),
-                    _ => None,
-                }).unwrap_or(BitWidth::W64);
-                self.eval_expr(&Expr::ZeroExtend { value: Box::new(args[0].clone()), to })
+                let _v = self.eval_expr(&args[0])?;
+                let to = args
+                    .get(1)
+                    .and_then(|e| match e {
+                        Expr::Const { value: _, ty } => Some(*ty),
+                        _ => None,
+                    })
+                    .unwrap_or(BitWidth::W64);
+                self.eval_expr(&Expr::ZeroExtend {
+                    value: Box::new(args[0].clone()),
+                    to,
+                })
             }
             "SignExtend" => {
-                let v = self.eval_expr(&args[0])?;
-                let to = args.get(1).and_then(|e| match e {
-                    Expr::Const { value, ty } => Some(*ty),
-                    _ => None,
-                }).unwrap_or(BitWidth::W64);
-                self.eval_expr(&Expr::SignExtend { value: Box::new(args[0].clone()), to })
+                let _v = self.eval_expr(&args[0])?;
+                let to = args
+                    .get(1)
+                    .and_then(|e| match e {
+                        Expr::Const { value: _, ty } => Some(*ty),
+                        _ => None,
+                    })
+                    .unwrap_or(BitWidth::W64);
+                self.eval_expr(&Expr::SignExtend {
+                    value: Box::new(args[0].clone()),
+                    to,
+                })
             }
             "IsZero" => {
                 let v = self.eval_expr(&args[0])?;
@@ -634,12 +907,19 @@ impl Interpreter {
         }
     }
 
-    fn eval_generic_prim(&mut self, name: &str, type_args: &[BitWidth], args: &[Expr]) -> InterpreterResult<u128> {
+    fn eval_generic_prim(
+        &mut self,
+        name: &str,
+        type_args: &[BitWidth],
+        args: &[Expr],
+    ) -> InterpreterResult<u128> {
         match name {
             "UInt" | "SInt" => {
                 if let Some(arg) = args.first() {
                     self.eval_expr(arg)
-                } else { Ok(0) }
+                } else {
+                    Ok(0)
+                }
             }
             "ZeroExtend" | "SignExtend" => {
                 if let Some(arg) = args.first() {
@@ -656,13 +936,19 @@ impl Interpreter {
                             Ok(v)
                         }
                     }
-                } else { Ok(0) }
+                } else {
+                    Ok(0)
+                }
             }
             _ => Ok(0),
         }
     }
 
-    fn match_pattern(&mut self, patterns: &[crate::stmt::MatchPattern], value: &u128) -> InterpreterResult<bool> {
+    fn match_pattern(
+        &mut self,
+        patterns: &[crate::stmt::MatchPattern],
+        value: &u128,
+    ) -> InterpreterResult<bool> {
         for pat in patterns {
             match pat {
                 crate::stmt::MatchPattern::Constant(expr) => {
@@ -724,7 +1010,7 @@ impl Interpreter {
             Reg::Xzr => {}
             Reg::W(n) => {
                 if *n < 31 {
-                    self.state.gpr.x[*n as usize] = (self.state.gpr.x[*n as usize] & 0xFFFF_FFFF_0000_0000) | (*value as u64 & 0xFFFF_FFFF);
+                    self.state.gpr.x[*n as usize] = *value as u64 & 0xFFFF_FFFF;
                 }
             }
             Reg::Wzr => {}
@@ -814,10 +1100,14 @@ impl Interpreter {
             &tcr_config,
             ttbr0,
             ttbr1,
-        ).map_err(InterpreterError::MemoryFault)?;
+        )
+        .map_err(InterpreterError::MemoryFault)?;
 
         // Read from physical address
-        let data = self.state.memory.read_phys(addrdesc.paddress.address, size_bytes as u64)
+        let data = self
+            .state
+            .memory
+            .read_phys(addrdesc.paddress.address, size_bytes as u64)
             .map_err(InterpreterError::MemoryFault)?;
 
         // Zero-extend to 128 bits
@@ -825,7 +1115,12 @@ impl Interpreter {
     }
 
     /// Write memory at virtual address with specified size
-    pub fn memory_write(&mut self, address: u128, value: u128, size: MemSize) -> InterpreterResult<()> {
+    pub fn memory_write(
+        &mut self,
+        address: u128,
+        value: u128,
+        size: MemSize,
+    ) -> InterpreterResult<()> {
         let vaddr = address as u64;
         let size_bytes = size.width().bits() / 8;
 
@@ -860,10 +1155,13 @@ impl Interpreter {
             &tcr_config,
             ttbr0,
             ttbr1,
-        ).map_err(InterpreterError::MemoryFault)?;
+        )
+        .map_err(InterpreterError::MemoryFault)?;
 
         // Write to physical address
-        self.state.memory.write_phys(addrdesc.paddress.address, size_bytes as u64, value as u64)
+        self.state
+            .memory
+            .write_phys(addrdesc.paddress.address, size_bytes as u64, value as u64)
             .map_err(InterpreterError::MemoryFault)
     }
 
@@ -872,18 +1170,27 @@ impl Interpreter {
         // Simplified: in a real implementation, this would track
         // whether the base register for the memory access is X31 (SP)
         // For now, we'll check if we're at EL0 and SCTLR has SP alignment checks enabled
-        self.state.pstate.current_el() == ExceptionLevel::EL0 &&
-        self.state.sys.sctlr_el1_config.sa
+        self.state.pstate.current_el() == ExceptionLevel::EL0 && self.state.sys.sctlr_el1_config.sa
     }
 
     /// Evaluate atomic read-modify-write operation
-    pub fn eval_atomic_rmw(&self, op: AtomicRMWOp, old_val: u128, new_val: u128, size: MemSize) -> InterpreterResult<u128> {
+    pub fn eval_atomic_rmw(
+        &self,
+        op: AtomicRMWOp,
+        old_val: u128,
+        new_val: u128,
+        size: MemSize,
+    ) -> InterpreterResult<u128> {
         let bits = size.width().bits();
-        let mask = if bits == 128 { !0u128 } else { (1u128 << bits) - 1 };
-        
+        let mask = if bits == 128 {
+            !0u128
+        } else {
+            (1u128 << bits) - 1
+        };
+
         let old = old_val & mask;
         let new = new_val & mask;
-        
+
         let result = match op {
             AtomicRMWOp::Add => old.wrapping_add(new),
             AtomicRMWOp::Bic => old & !new,
@@ -892,24 +1199,54 @@ impl Interpreter {
             AtomicRMWOp::Smax => {
                 let old_s = old as i128;
                 let new_s = new as i128;
-                if old_s > new_s { old } else { new }
+                if old_s > new_s {
+                    old
+                } else {
+                    new
+                }
             }
             AtomicRMWOp::Smin => {
                 let old_s = old as i128;
                 let new_s = new as i128;
-                if old_s < new_s { old } else { new }
+                if old_s < new_s {
+                    old
+                } else {
+                    new
+                }
             }
-            AtomicRMWOp::Umax => if old > new { old } else { new },
-            AtomicRMWOp::Umin => if old < new { old } else { new },
+            AtomicRMWOp::Umax => {
+                if old > new {
+                    old
+                } else {
+                    new
+                }
+            }
+            AtomicRMWOp::Umin => {
+                if old < new {
+                    old
+                } else {
+                    new
+                }
+            }
             AtomicRMWOp::Swp => new,
         };
-        
+
         Ok(result & mask)
     }
 
-    pub fn add_with_carry(&self, x: u128, y: u128, carry_in: bool, width: BitWidth) -> InterpreterResult<(u128, ConditionFlags)> {
+    pub fn add_with_carry(
+        &self,
+        x: u128,
+        y: u128,
+        carry_in: bool,
+        width: BitWidth,
+    ) -> InterpreterResult<(u128, ConditionFlags)> {
         let bits = width.bits();
-        let mask = if bits == 128 { !0u128 } else { (1u128 << bits) - 1 };
+        let mask = if bits == 128 {
+            !0u128
+        } else {
+            (1u128 << bits) - 1
+        };
         let x_masked = x & mask;
         let y_masked = y & mask;
         let c = if carry_in { 1u128 } else { 0u128 };
@@ -980,8 +1317,14 @@ mod tests {
         // result = X0 + X1
         let expr = Expr::Binary {
             op: BinOp::Add,
-            left: Box::new(Expr::ReadReg { reg: Reg::X(0), width: BitWidth::W64 }),
-            right: Box::new(Expr::ReadReg { reg: Reg::X(1), width: BitWidth::W64 }),
+            left: Box::new(Expr::ReadReg {
+                reg: Reg::X(0),
+                width: BitWidth::W64,
+            }),
+            right: Box::new(Expr::ReadReg {
+                reg: Reg::X(1),
+                width: BitWidth::W64,
+            }),
             ty: ValueType::Bits(Width::Fixed(BitWidth::W64)),
         };
         let result = interp.eval_expr(&expr).unwrap();
@@ -1000,7 +1343,9 @@ mod tests {
         assert!(!flags.v);
 
         // Test carry
-        let (result, flags) = interp.add_with_carry(u64::MAX as u128, 1, false, BitWidth::W64).unwrap();
+        let (result, flags) = interp
+            .add_with_carry(u64::MAX as u128, 1, false, BitWidth::W64)
+            .unwrap();
         assert_eq!(result, 0);
         assert!(!flags.n);
         assert!(flags.z);
@@ -1008,7 +1353,9 @@ mod tests {
         assert!(!flags.v);
 
         // Test overflow
-        let (result, flags) = interp.add_with_carry(0x7FFF_FFFF_FFFF_FFFFu128, 1, false, BitWidth::W64).unwrap();
+        let (result, flags) = interp
+            .add_with_carry(0x7FFF_FFFF_FFFF_FFFFu128, 1, false, BitWidth::W64)
+            .unwrap();
         assert_eq!(result, 0x8000_0000_0000_0000);
         assert!(flags.n);
         assert!(!flags.z);
@@ -1021,11 +1368,15 @@ mod tests {
         let mut interp = Interpreter::new();
         interp.state.pstate.flags.z = true;
 
-        let expr = Expr::ConditionHolds { condition: Condition::Eq };
+        let expr = Expr::ConditionHolds {
+            condition: Condition::Eq,
+        };
         let result = interp.eval_expr(&expr).unwrap();
         assert_eq!(result, 1);
 
-        let expr = Expr::ConditionHolds { condition: Condition::Ne };
+        let expr = Expr::ConditionHolds {
+            condition: Condition::Ne,
+        };
         let result = interp.eval_expr(&expr).unwrap();
         assert_eq!(result, 0);
     }
@@ -1036,10 +1387,15 @@ mod tests {
         interp.state.gpr.write_pc(0x1000);
 
         let stmt = Stmt::Branch {
-            target: Expr::Const { value: 0x2000, ty: BitWidth::W64 },
+            target: Expr::Const {
+                value: 0x2000,
+                ty: BitWidth::W64,
+            },
         };
         let result = interp.execute_stmt(&stmt);
-        assert!(matches!(result, Err(InterpreterError::BranchTaken { target }) if target == 0x2000));
+        assert!(
+            matches!(result, Err(InterpreterError::BranchTaken { target }) if target == 0x2000)
+        );
         assert_eq!(interp.state.gpr.read_pc(), 0x2000);
     }
 
@@ -1051,11 +1407,18 @@ mod tests {
 
         // B.EQ taken
         let stmt = Stmt::BranchConditional {
-            condition: Expr::ConditionHolds { condition: Condition::Eq },
-            target: Expr::Const { value: 0x2000, ty: BitWidth::W64 },
+            condition: Expr::ConditionHolds {
+                condition: Condition::Eq,
+            },
+            target: Expr::Const {
+                value: 0x2000,
+                ty: BitWidth::W64,
+            },
         };
         let result = interp.execute_stmt(&stmt);
-        assert!(matches!(result, Err(InterpreterError::BranchTaken { target }) if target == 0x2000));
+        assert!(
+            matches!(result, Err(InterpreterError::BranchTaken { target }) if target == 0x2000)
+        );
         assert_eq!(interp.state.gpr.read_pc(), 0x2000);
     }
 
@@ -1065,7 +1428,10 @@ mod tests {
 
         let stmt = Stmt::WriteReg {
             reg: Reg::X(0),
-            value: Expr::Const { value: 42, ty: BitWidth::W64 },
+            value: Expr::Const {
+                value: 42,
+                ty: BitWidth::W64,
+            },
         };
         interp.execute_stmt(&stmt).unwrap();
         assert_eq!(interp.state.gpr.read_x(0), 42);
@@ -1089,9 +1455,17 @@ mod tests {
         interp.state.pstate.flags.z = true;
 
         let expr = Expr::Select {
-            condition: Box::new(Expr::ConditionHolds { condition: Condition::Eq }),
-            when_true: Box::new(Expr::Const { value: 100, ty: BitWidth::W64 }),
-            when_false: Box::new(Expr::Const { value: 200, ty: BitWidth::W64 }),
+            condition: Box::new(Expr::ConditionHolds {
+                condition: Condition::Eq,
+            }),
+            when_true: Box::new(Expr::Const {
+                value: 100,
+                ty: BitWidth::W64,
+            }),
+            when_false: Box::new(Expr::Const {
+                value: 200,
+                ty: BitWidth::W64,
+            }),
             ty: ValueType::Bits(Width::Fixed(BitWidth::W64)),
         };
         let result = interp.eval_expr(&expr).unwrap();
@@ -1103,7 +1477,10 @@ mod tests {
         let mut interp = Interpreter::new();
 
         let expr = Expr::ZeroExtend {
-            value: Box::new(Expr::Const { value: 0xFF, ty: BitWidth::W8 }),
+            value: Box::new(Expr::Const {
+                value: 0xFF,
+                ty: BitWidth::W8,
+            }),
             to: BitWidth::W64,
         };
         let result = interp.eval_expr(&expr).unwrap();
@@ -1116,7 +1493,10 @@ mod tests {
 
         // Positive value
         let expr = Expr::SignExtend {
-            value: Box::new(Expr::Const { value: 0x7F, ty: BitWidth::W8 }),
+            value: Box::new(Expr::Const {
+                value: 0x7F,
+                ty: BitWidth::W8,
+            }),
             to: BitWidth::W64,
         };
         let result = interp.eval_expr(&expr).unwrap();
@@ -1124,7 +1504,10 @@ mod tests {
 
         // Negative value (sign bit set in 8-bit)
         let expr = Expr::SignExtend {
-            value: Box::new(Expr::Const { value: 0xFF, ty: BitWidth::W8 }),
+            value: Box::new(Expr::Const {
+                value: 0xFF,
+                ty: BitWidth::W8,
+            }),
             to: BitWidth::W64,
         };
         let result = interp.eval_expr(&expr).unwrap();

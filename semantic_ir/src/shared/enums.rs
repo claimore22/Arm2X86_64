@@ -356,6 +356,7 @@ pub enum MemType {
 /// Stanford pseudocode: `DeviceType` enumeration
 /// Source: https://www.scs.stanford.edu/~zyedidia/arm64/shared_pseudocode.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)] // memory attribute encoding names (nGnRnE, ...)
 pub enum DeviceType {
     nGnRnE,
     nGnRE,
@@ -450,6 +451,7 @@ impl fmt::Display for Constraint {
 /// Stanford pseudocode: `Unpredictable` enumeration
 /// Source: https://www.scs.stanford.edu/~zyedidia/arm64/shared_pseudocode.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)] // pseudocode constraint identifiers use underscores
 pub enum Unpredictable {
     VCMATCHDAPA,
     VCMATCHHALF,

@@ -833,6 +833,7 @@ pub enum SVEGatherScatterOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)] // architecture operation names use underscores
 pub enum SVESpecialOp {
     Index,
     Dup,

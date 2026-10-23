@@ -5,8 +5,7 @@
 //!
 //! Stanford concepts: PSTATE, system registers, special registers
 
-use crate::shared::enums::{Condition, ConditionFlags, ExceptionLevel, SecurityState, Shareability};
-use core::fmt;
+use crate::shared::enums::{Condition, ConditionFlags, ExceptionLevel, Shareability};
 
 /// PSTATE - Processor State
 ///

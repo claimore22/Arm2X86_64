@@ -152,7 +152,7 @@ pub fn add_with_carry<N: IntegerWidth>(x: N, y: N, carry_in: bool) -> AddWithCar
 
     // Signed arithmetic
     let signed_sum = x.to_i128() + y.to_i128() + carry_val.to_i128();
-    let result_signed = N::from_u128(signed_sum as u128);
+    let _result_signed = N::from_u128(signed_sum as u128);
 
     // The result is the same bit pattern for both unsigned and signed
     let result = result_unsigned;
@@ -207,7 +207,7 @@ pub fn sub_with_carry<N: IntegerWidth>(x: N, y: N, carry_in: bool) -> AddWithCar
 
     // Signed arithmetic
     let signed_diff = x.to_i128().wrapping_sub(y.to_i128()).wrapping_sub(borrow as i128);
-    let result_signed = N::from_u128(signed_diff as u128);
+    let _result_signed = N::from_u128(signed_diff as u128);
 
     let result = result_unsigned;
 
