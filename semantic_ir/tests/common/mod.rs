@@ -55,15 +55,15 @@ impl ArithmeticOp {
     }
     pub fn instruction_word(self) -> u32 {
         match self {
-            ArithmeticOp::Add => 0x8B020020,
-            ArithmeticOp::Sub => 0xCB020020,
+            ArithmeticOp::Add => 0x92020020,
+            ArithmeticOp::Sub => 0xD2020020,
             ArithmeticOp::And => 0x8A020020,
             ArithmeticOp::Or => 0xAA020020,
             ArithmeticOp::Xor => 0xCA020020,
             ArithmeticOp::Ands => 0xEA020020,
-            ArithmeticOp::Mul => 0x9B020020,
-            ArithmeticOp::Sdiv => 0x9AC20020,
-            ArithmeticOp::Udiv => 0x9AC20020, // Actually UDIV has different encoding
+            ArithmeticOp::Mul => 0x9B027C20,
+            ArithmeticOp::Sdiv => 0x9AC20C20,
+            ArithmeticOp::Udiv => 0x9AC20820,
         }
     }
     pub fn reference(self, xn: u64, xm: u64, amount: u32) -> u64 {
@@ -115,8 +115,17 @@ pub mod win32 {
         unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), mem, bytes.len()); }
         let rc = make_executable(mem, bytes.len());
         if rc == 0 { let _ = free_mem(mem, bytes.len()); return Err(format!("VirtualProtect failed: {}", rc)); }
-        let func: extern "C" fn(u64, u64) -> u64 = unsafe { std::mem::transmute(mem) };
-        let result = func(x1, x2);
+        let result: u64;
+        unsafe {
+            std::arch::asm!(
+                "call {func}",
+                func = in(reg) mem,
+                in("rcx") x1,
+                in("rdx") x2,
+                lateout("rax") result,
+                options(nostack, preserves_flags)
+            );
+        }
         let _ = free_mem(mem, bytes.len());
         Ok(result)
     }
@@ -138,33 +147,32 @@ pub mod win32 {
 
     /// Run native code and return both result (RAX) and x86 flags (RDX)
     /// The generated code must save result in RBX, move flags to RDX, restore result to RAX
+    /// carry_in is the ARM C flag (0/1), passed in R8. Generated code sets x86 CF accordingly:
+    ///   ADC: CF = carry_in
+    ///   SBC: CF = NOT carry_in (borrow-in)
     #[cfg(target_os = "windows")]
-    pub fn run_native_with_flags(bytes: &[u8], x1: u64, x2: u64) -> Result<(u64, u64), String> {
+    pub fn run_native_with_flags(bytes: &[u8], x1: u64, x2: u64, carry_in: bool) -> Result<(u64, u64), String> {
         let mem = alloc_executable(bytes.len()).ok_or("VirtualAlloc failed")?;
         unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), mem, bytes.len()); }
         let rc = make_executable(mem, bytes.len());
         if rc == 0 { let _ = free_mem(mem, bytes.len()); return Err(format!("VirtualProtect failed: {}", rc)); }
-        
-        // Use inline assembly to call the generated code with our custom convention:
-        // Generated code expects: RCX=x1, RDX=x2 -> returns RAX=result, RDX=flags
-        let (result, flags): (u64, u64);
+
+        // carry_in is prepended to generated code as `mov r8, <carry_in>`.
+        // ABI sets RCX=x1, RDX=x2, R8=carry_in per Windows x64 calling convention.
+        // Generated code returns RAX=result and leaves x86 flags set.
+        let func: extern "C" fn(u64, u64, u64) -> u64 = unsafe { std::mem::transmute(mem) };
+        let result = unsafe { func(x1, x2, carry_in as u64) };
+        // Capture x86 flags set by the just-executed generated code
+        let flags: u64;
         unsafe {
-            std::arch::asm!(
-                "call {func}",
-                func = in(reg) mem,
-                in("rcx") x1,
-                in("rdx") x2,
-                lateout("rax") result,
-                lateout("rdx") flags,
-                options(nostack, preserves_flags)
-            );
+            std::arch::asm!("pushfq", "pop {flags}", flags = out(reg) flags);
         }
         let _ = free_mem(mem, bytes.len());
         Ok((result, flags))
     }
     
     #[cfg(not(target_os = "windows"))]
-    pub fn run_native_with_flags(_bytes: &[u8], _x1: u64, _x2: u64) -> Result<(u64, u64), String> {
+    pub fn run_native_with_flags(_bytes: &[u8], _x1: u64, _x2: u64, _carry_in: bool) -> Result<(u64, u64), String> {
         Err("Not supported on non-Windows".to_string())
     }
 

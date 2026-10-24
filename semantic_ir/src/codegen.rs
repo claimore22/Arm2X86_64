@@ -499,24 +499,28 @@ fn emit_adc_sbc(decoded: &crate::decode::DecodedInstruction) -> Result<Vec<u8>, 
     if rd != X86Reg::RAX || rn != X86Reg::RCX || rm != X86Reg::RDX {
         return Err(CodegenError::UnsupportedOperand("adc/sbc codegen supports only X0 = X1 op X2".to_string()));
     }
+    // Default convention (no carry-in passed): ARM C = 0.
+    //   ADC: x86 CF = 0  (clc)   -> rax + rdx + 0
+    //   SBC: x86 CF = 1  (stc)   -> rax - rdx - 1  (ARM C=0 means borrow-in)
+    let is_adc = decoded.mnemonic == "ADC" || decoded.mnemonic == "ADCS";
     let mut bytes = Vec::new();
     if is_64 {
-        bytes.extend_from_slice(&[0x48, 0x89, 0xC8]); // mov rax, rcx (rn)
-        if decoded.mnemonic == "ADC" {
-            bytes.push(0xF8); // clc (CF=0, ARM C=0 => no carry in)
+        bytes.extend_from_slice(&[0x48, 0x89, 0xC8]); // mov rax, rcx
+        if is_adc {
+            bytes.push(0xF8); // clc (CF=0, no carry in)
             bytes.extend_from_slice(&[0x48, 0x11, 0xD0]); // adc rax, rdx
         } else {
-            bytes.push(0xF8); // clc (CF=0, ARM C=1 => no borrow in)
+            bytes.push(0xF9); // stc (CF=1, borrow in)
             bytes.extend_from_slice(&[0x48, 0x19, 0xD0]); // sbb rax, rdx
         }
     } else {
-        bytes.extend_from_slice(&[0x89, 0xC8]);
-        if decoded.mnemonic == "ADC" {
-            bytes.push(0xF8);
-            bytes.extend_from_slice(&[0x11, 0xD0]);
+        bytes.extend_from_slice(&[0x89, 0xC8]); // mov eax, ecx
+        if is_adc {
+            bytes.push(0xF8); // clc
+            bytes.extend_from_slice(&[0x11, 0xD0]); // adc eax, edx
         } else {
-            bytes.push(0xF8);
-            bytes.extend_from_slice(&[0x19, 0xD0]);
+            bytes.push(0xF9); // stc
+            bytes.extend_from_slice(&[0x19, 0xD0]); // sbb eax, edx
         }
     }
     bytes.push(0xC3);
@@ -723,10 +727,43 @@ fn emit_addsub_imm_with_flags(decoded: &crate::decode::DecodedInstruction) -> Re
     Ok(bytes)
 }
 
-fn emit_adc_sbc_with_flags(decoded: &crate::decode::DecodedInstruction) -> Result<Vec<u8>, CodegenError> {
-    let mut bytes = emit_adc_sbc(decoded)?;
-    bytes.pop();
-    append_save_flags(&mut bytes, match decoded.width { BitWidth::W64 => true, _ => false });
+fn emit_adc_sbc_with_flags(decoded: &crate::decode::DecodedInstruction, carry_in: bool) -> Result<Vec<u8>, CodegenError> {
+    let is_64 = match decoded.width {
+        BitWidth::W64 => true,
+        BitWidth::W32 => false,
+        _ => return Err(CodegenError::UnsupportedWidth(decoded.width)),
+    };
+    let rd = x86_reg_from_decoded(&decoded.rd)?;
+    let rn = x86_reg_from_decoded(&decoded.rn)?;
+    let rm = x86_reg_from_decoded(&decoded.rm)?;
+    if rd != X86Reg::RAX || rn != X86Reg::RCX || rm != X86Reg::RDX {
+        return Err(CodegenError::UnsupportedOperand("adc/sbc codegen supports only X0 = X1 op X2".to_string()));
+    }
+    let is_adc = decoded.mnemonic == "ADC" || decoded.mnemonic == "ADCS";
+    let mut bytes = Vec::new();
+    // Set x86 CF from ARM carry_in at codegen time (avoids R8 register constraint issues):
+    //   ADC: CF = carry_in        -> clc if carry_in=0, stc if carry_in=1
+    //   SBC: CF = NOT carry_in    -> stc if carry_in=0, clc if carry_in=1
+    if is_64 {
+        bytes.extend_from_slice(&[0x48, 0x89, 0xC8]); // mov rax, rcx
+        if is_adc {
+            if carry_in { bytes.push(0xF9); } else { bytes.push(0xF8); } // stc/clc
+            bytes.extend_from_slice(&[0x48, 0x11, 0xD0]); // adc rax, rdx
+        } else {
+            if carry_in { bytes.push(0xF8); } else { bytes.push(0xF9); } // clc/stc (CF=NOT carry_in)
+            bytes.extend_from_slice(&[0x48, 0x19, 0xD0]); // sbb rax, rdx
+        }
+    } else {
+        bytes.extend_from_slice(&[0x89, 0xC8]); // mov eax, ecx
+        if is_adc {
+            if carry_in { bytes.push(0xF9); } else { bytes.push(0xF8); }
+            bytes.extend_from_slice(&[0x11, 0xD0]); // adc eax, edx
+        } else {
+            if carry_in { bytes.push(0xF8); } else { bytes.push(0xF9); }
+            bytes.extend_from_slice(&[0x19, 0xD0]); // sbb eax, edx
+        }
+    }
+    append_save_flags(&mut bytes, is_64);
     bytes.push(0xC3);
     Ok(bytes)
 }
@@ -848,14 +885,14 @@ pub fn lower_to_x86_64(decoded: &crate::decode::DecodedInstruction) -> Result<Ve
 
 /// Lower to x86-64 with flag capture (for instructions that set flags)
 /// Returns code that saves result in RAX and x86 RFLAGS in RDX
-pub fn lower_to_x86_64_with_flags(decoded: &crate::decode::DecodedInstruction) -> Result<Vec<u8>, CodegenError> {
+pub fn lower_to_x86_64_with_flags(decoded: &crate::decode::DecodedInstruction, carry_in: bool) -> Result<Vec<u8>, CodegenError> {
     match decoded.mnemonic.as_str() {
         "ADDS" => emit_add_shifted_register_with_flags(decoded),
         "SUBS" => emit_sub_shifted_register_with_flags(decoded),
         "ANDS" | "BICS" => emit_logical_shifted_register_with_flags(decoded),
         "ANDSI" => emit_logical_imm_with_flags(decoded),
         "ADDSI" | "SUBSI" => emit_addsub_imm_with_flags(decoded),
-        "ADC" | "SBC" => emit_adc_sbc_with_flags(decoded),
+        "ADC" | "SBC" => emit_adc_sbc_with_flags(decoded, carry_in),
         "CCMP" | "CCMN" => emit_ccmp_ccmn_with_flags(decoded),
         _ => Err(CodegenError::UnsupportedMnemonic(format!("{} does not support flag capture", decoded.mnemonic))),
     }

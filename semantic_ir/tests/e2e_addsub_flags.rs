@@ -28,8 +28,8 @@ fn adds_subs() {
     assert_eq!(native, 30);
 
     // Native with flags
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, false).unwrap();
     assert_eq!(native_result, 30);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     // ADDS 10 + 20 = 30: N=0, Z=0, C=0, V=0
@@ -56,8 +56,8 @@ fn adds_subs() {
     assert_eq!(native, 20);
 
     // Native with flags
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 30, 10).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 30, 10, false).unwrap();
     assert_eq!(native_result, 20);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, true);
     // SUBS 30 - 10 = 20: N=0, Z=0, C=1 (no borrow), V=0

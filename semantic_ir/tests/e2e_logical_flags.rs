@@ -26,8 +26,8 @@ fn ands_orr_eors_bics_flags() {
     assert!(!interp.state.pstate.flags.c); // logical ops clear C
     assert!(!interp.state.pstate.flags.v); // logical ops clear V
     
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xF0, 0x0F).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xF0, 0x0F, false).unwrap();
     assert_eq!(native_result, 0x00);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags & 0b0100, 0b0100); // Z=1
@@ -44,7 +44,7 @@ fn ands_orr_eors_bics_flags() {
     assert!(!interp.state.pstate.flags.n); // positive
     assert!(!interp.state.pstate.flags.z); // non-zero
     
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xFF, 0x0F).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xFF, 0x0F, false).unwrap();
     assert_eq!(native_result, 0x0F);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags & 0b1000, 0); // N=0
@@ -66,8 +66,8 @@ fn ands_orr_eors_bics_flags() {
     assert!(!interp.state.pstate.flags.n);
     assert!(!interp.state.pstate.flags.z);
     
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xFF, 0x0F).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xFF, 0x0F, false).unwrap();
     assert_eq!(native_result, 0xF0);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags & 0b1000, 0); // N=0
@@ -95,8 +95,8 @@ fn logical_shifted_with_shift_amount() {
     assert!(!interp.state.pstate.flags.n);
     assert!(!interp.state.pstate.flags.z);
     
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xFF, 0xF).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0xFF, 0xF, false).unwrap();
     assert_eq!(native_result, 0xF0);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags & 0b1000, 0); // N=0
@@ -123,8 +123,8 @@ fn adds_subs_32bit() {
     assert!(!interp.state.pstate.flags.c);
     assert!(!interp.state.pstate.flags.v);
     
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, false).unwrap();
     assert_eq!(native_result, 30);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags, 0);
@@ -144,8 +144,8 @@ fn adds_subs_32bit() {
     assert!(!interp.state.pstate.flags.z);
     assert!(interp.state.pstate.flags.c); // no borrow
     
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 30, 10).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 30, 10, false).unwrap();
     assert_eq!(native_result, 20);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, true);
     assert_eq!(native_arm_flags & 0b0010, 0b0010); // C=1
@@ -166,8 +166,8 @@ fn adc_sbc_32bit() {
     interp.execute_instruction(&instruction).unwrap();
     assert_eq!(interp.state.gpr.read_w(0), 31);
     
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, false).unwrap();
     assert_eq!(native_result, 31);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags, 0);

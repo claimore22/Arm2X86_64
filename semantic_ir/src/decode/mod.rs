@@ -40,8 +40,9 @@ pub struct DecodedInstruction {
 }
 
 pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> {
-    // CCMP/CCMN: bits 24-28 = 0x1A (11010), bit 30 = op (0=CCMN, 1=CCMP), bit 31 = sf
-    let is_ccmp = ((bits >> 24) & 0x1F) == 0x1A;
+    let t = (bits >> 10) & 0x3F;
+    // CCMP/CCMN: bits 24-28 = 0x1A (11010), bit 23 = 1, but t != {2,3} (those are SDIV/UDIV)
+    let is_ccmp = ((bits >> 24) & 0x1F) == 0x1A && ((bits >> 23) & 1) == 1 && t != 0x02 && t != 0x03;
     let is_logical = ((bits >> 23) & 0x1F) == 0b10100
         && ((bits >> 28) & 1) == 0
         && ((bits >> 25) & 1) == 1
@@ -52,12 +53,11 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_bitfield = ((bits >> 24) & 0x1F) == 0b10011;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
     let is_extend = false;
-    let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011;
+    let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
     let is_cond_select = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && !(( (bits >> 10) & 0x3F == 0x08) || ((bits >> 10) & 0x3F == 0x0C));
-    let t = (bits >> 10) & 0x3F;
     let is_divide = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && (t == 0x02 || t == 0x03);
     let is_logical_imm = ((bits >> 24) & 0x1F) == 0b10010 && ((bits >> 23) & 1) == 0 && ((bits >> 21) & 1) == 1;
-    let is_adc_sbc = ((bits >> 24) & 0x1F) == 0b10000 && ((bits >> 23) & 1) == 1;
+    let is_adc_sbc = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 0;
     let is_multiply = ((bits >> 24) & 0x1F) == 0b11011;
     if is_ccmp {
         ccmp::decode_ccmp(bits)

@@ -6,20 +6,27 @@ use crate::primitives::ShiftKind;
 pub fn decode_adc_sbc(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     let sf = (bits >> 31) & 1;
     let op = (bits >> 30) & 1; // 0 adc, 1 sbc
+    let s = (bits >> 29) & 1; // 1 => ADCS/SBCS (flags)
     let rm = (bits >> 16) & 0x1F;
     let rn = (bits >> 5) & 0x1F;
     let rd = bits & 0x1F;
-    let bit10 = (bits >> 10) & 1;
-    if bit10 != 0 {
-        return Err(DecodeError::UndefinedInstruction); // ADCS/SBCS not supported
-    }
-    if ((bits >> 28) & 1) != 1 {
+
+    // Add/subtract with carry register: sf op S 1 1 0 1 0 0 0 0 ... (bits 24-28 = 11010, bit23 = 0)
+    if ((bits >> 24) & 0x1F) != 0b11010 {
         return Err(DecodeError::UndefinedInstruction);
     }
-    if ((bits >> 23) & 1) != 1 {
+    if ((bits >> 23) & 1) != 0 {
         return Err(DecodeError::UndefinedInstruction);
     }
-    let mnemonic = if op == 0 { "ADC" } else { "SBC" };
+    if ((bits >> 10) & 0x3F) != 0 {
+        return Err(DecodeError::UndefinedInstruction);
+    }
+    let mnemonic = match (op, s) {
+        (0, 0) => "ADC",
+        (1, 0) => "SBC",
+        (0, 1) => "ADCS",
+        _ => "SBCS",
+    };
     let width = if sf == 1 { BitWidth::W64 } else { BitWidth::W32 };
     fn to_reg(idx: u8, w: BitWidth) -> Result<Reg, DecodeError> {
         match Reg::x(idx) {

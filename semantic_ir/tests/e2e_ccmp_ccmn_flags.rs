@@ -22,7 +22,7 @@ fn ccmp_ccmn_flags() {
     let bits = 0xDA020021u32;
     let decoded = decode_instruction(bits).unwrap();
 
-             decoded.mnemonic, decoded.rd, decoded.rn, decoded.rm, decoded.shift_amount, decoded.imm);
+            println!("decoded: mnemonic={} rd={:?} rn={:?} rm={:?} shift_amount={} imm={}", decoded.mnemonic, decoded.rd, decoded.rn, decoded.rm, decoded.shift_amount, decoded.imm);
     
     let instruction = lower_to_ir(&decoded);
     validate_instruction(&instruction).unwrap();
@@ -48,12 +48,12 @@ fn ccmp_ccmn_flags() {
     // CCMP with EQ false: set flags from NZCV immediate (1) -> V=1
     assert!(!interp.state.pstate.flags.n);
     assert!(!interp.state.pstate.flags.z);
-    assert!(!interp.state.pstate.flags.c);
-    assert!(interp.state.pstate.flags.v);
+    assert!(!interp.state.pstate.flags.c); // C=0 from NZCV immediate (bit 1 = 0)
+    assert!(interp.state.pstate.flags.v); // V=1 from NZCV immediate (bit 0 = 1)
     
     // Native with flags - test condition true case (simplified: just does cmp)
-    let bytes = lower_to_x86_64_with_flags(&decoded).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 30, 10).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 30, 10, false).unwrap();
     assert_eq!(native_result, 30); // Result register unchanged
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, true);
     // 30 - 10 = 20: N=0, Z=0, C=1 (no borrow), V=0

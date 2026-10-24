@@ -10,6 +10,7 @@ sve_index_files/
 stanford/
 semantic_ir_import/
 audit_report_20261020/
+supervisor/
 
 # Editor / OS noise
 .idea/
