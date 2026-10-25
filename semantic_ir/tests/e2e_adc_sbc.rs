@@ -6,7 +6,7 @@ use semantic_ir::{validate_instruction, BitWidth};
 
 #[test]
 fn adc_sbc() {
-    // ADC X0, X1, X2 = 0x9A020020
+    // ADC X0, X1, X2 = 0x9A020020 (sf=1, op=0 ADC, S=0, bits 28-24=11010, bit23=0, Rm=2, Rn=1, Rd=0)
     let decoded = decode_instruction(0x9A020020u32).unwrap();
     assert_eq!(decoded.mnemonic, "ADC");
     let instruction = lower_to_ir(&decoded);
@@ -22,7 +22,7 @@ fn adc_sbc() {
     let native = common::win32::run_native(&bytes, 10, 20).unwrap();
     assert_eq!(native, 30);
 
-    // SBC
+    // SBC X0, X1, X2 = 0xDA020020 (sf=1, op=1 SBC, S=0, bits 28-24=11010, bit23=0, Rm=2, Rn=1, Rd=0)
     let decoded = decode_instruction(0xDA020020u32).unwrap();
     assert_eq!(decoded.mnemonic, "SBC");
     let instruction = lower_to_ir(&decoded);

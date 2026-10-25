@@ -7,7 +7,7 @@ use common::extract_arm_flags_from_x86;
 
 #[test]
 fn adc_sbc_flags() {
-    // ADC X0, X1, X2 = 0x9A020020 (sf=1, op=0 ADC, S=0, Rm=2, Rn=1, Rd=0)
+    // ADC X0, X1, X2 = 0x9A020020 (sf=1, op=0 ADC, S=0, bits 28-24=11010, bit23=0, Rm=2, Rn=1, Rd=0)
     let bits = 0x9A020020u32;
     let decoded = decode_instruction(bits).unwrap();
     assert_eq!(decoded.mnemonic, "ADC");
@@ -66,7 +66,8 @@ fn adc_sbc_flags() {
 #[test]
 fn adc_sbc_edge_cases() {
     // ADC with carry out (no carry in)
-    let bits = 0x9A020020u32; // ADC X0, X1, X2
+    // ADC X0, X1, X2 = 0x9A020020
+    let bits = 0x9A020020u32;
     let decoded = decode_instruction(bits).unwrap();
     let instruction = lower_to_ir(&decoded);
     validate_instruction(&instruction).unwrap();
@@ -91,7 +92,8 @@ fn adc_sbc_edge_cases() {
     assert_eq!(native_arm_flags & 0b0100, 0b0100); // Z=1
 
     // SBC with borrow (no carry in = borrow in)
-    let bits = 0xDA020020u32; // SBC X0, X1, X2
+    // SBC X0, X1, X2 = 0xDA020020 (sf=1, op=1 SBC, S=0, Rm=2, Rn=1, Rd=0)
+    let bits = 0xDA020020u32;
     let decoded = decode_instruction(bits).unwrap();
     let instruction = lower_to_ir(&decoded);
     validate_instruction(&instruction).unwrap();
@@ -102,7 +104,7 @@ fn adc_sbc_edge_cases() {
     interp.state.pstate.flags.c = false; // carry=0 means borrow in
     interp.execute_instruction(&instruction).unwrap();
     // SBC: 0 - 1 - 1 = 0xFFFFFFFFFFFFFE (with borrow)
-    assert_eq!(interp.state.gpr.read_x(0), 0xFFFFFFFFFFFFFFFEu64);
+    assert_eq!(interp.state.gpr.read_x(0), u64::MAX - 1);
     assert!(interp.state.pstate.flags.n);
     assert!(!interp.state.pstate.flags.z);
     assert!(!interp.state.pstate.flags.c); // borrow occurred
@@ -110,7 +112,7 @@ fn adc_sbc_edge_cases() {
 
     let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
     let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 0, 1, false).unwrap();
-    assert_eq!(native_result, 0xFFFFFFFFFFFFFFFEu64);
+    assert_eq!(native_result, u64::MAX - 1);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, true);
     assert_eq!(native_arm_flags & 0b0010, 0); // C=0 (borrow)
     assert_eq!(native_arm_flags & 0b1000, 0b1000); // N=1
@@ -118,7 +120,7 @@ fn adc_sbc_edge_cases() {
 
 #[test]
 fn adc_sbc_32bit() {
-    // ADC W0, W1, W2 = 0x1A020020 (sf=0, op=0 ADC, S=0)
+    // ADC W0, W1, W2 = 0x1A020020 (sf=0, op=0 ADC, S=0, bits 28-24=11010)
     let bits = 0x1A020020u32;
     let decoded = decode_instruction(bits).unwrap();
     assert_eq!(decoded.mnemonic, "ADC");
@@ -139,7 +141,7 @@ fn adc_sbc_32bit() {
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags, 0);
 
-    // SBC W0, W1, W2 = 0x5A020020 (sf=0, op=1 SBC, S=0)
+    // SBC W0, W1, W2 = 0x5A020020 (sf=0, op=1 SBC, S=0, bits 28-24=11010)
     let bits = 0x5A020020u32;
     let decoded = decode_instruction(bits).unwrap();
     assert_eq!(decoded.mnemonic, "SBC");

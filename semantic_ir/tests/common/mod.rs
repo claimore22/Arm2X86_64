@@ -243,7 +243,7 @@ pub fn run_differential_case_op(op: ArithmeticOp, x1: u64, x2: u64) -> Result<Di
     let bits = op.instruction_word();
     let decoded = decode_instruction(bits).map_err(|e| format!("decode: {:?}", e))?;
     if decoded.mnemonic != op.mnemonic() {
-        return Err(format!("mnemonic mismatch"));
+        return Err(format!("mnemonic mismatch: expected {}, got {}", op.mnemonic(), decoded.mnemonic));
     }
     let instruction = lower_to_ir(&decoded);
     validate_instruction(&instruction).map_err(|e| format!("validate: {:?}", e))?;
@@ -335,7 +335,6 @@ pub fn generate_qemu_c(op: ArithmeticOp, width: BitWidth, shift: ShiftKind, amou
             ShiftKind::Lsr => "lsr",
             ShiftKind::Asr => "asr",
             ShiftKind::Ror => "ror",
-            _ => "lsl",
         }, amount),
     };
     let asm = if matches!(op, ArithmeticOp::Mul | ArithmeticOp::Sdiv | ArithmeticOp::Udiv) {

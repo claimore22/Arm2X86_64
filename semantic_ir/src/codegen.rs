@@ -805,44 +805,14 @@ fn emit_ccmp_ccmn_with_flags(decoded: &crate::decode::DecodedInstruction) -> Res
         _ => return Err(CodegenError::UnsupportedWidth(decoded.width)),
     };
     
-    // CCMP/CCMN operands:
-    // decoded.rn = Rn (first operand)
-    // decoded.rm = Rm (second operand) 
-    // decoded.shift_amount = condition (0-15)
-    // decoded.imm = NZCV (4 bits) for false case
-    
-    // We need registers:
-    // RCX = x1 = Rn
-    // RDX = x2 = Rm
-    // For condition, we need to read from the interpreter state, but for native we'll 
-    // pass the condition via a register or use a different approach
-    
-    // Since our native test infrastructure only passes x1 and x2, we'll encode 
-    // condition and NZCV into the instruction bytes (immediate values)
-    // This is a simplified version for testing
-    
-    let _condition = decoded.shift_amount; // 0-15
-    let _nzcv = decoded.imm; // 0-15
     let is_ccmp = decoded.mnemonic == "CCMP";
-    
     let mut bytes = Vec::new();
     
     if is_64 {
-        // For 64-bit, we need to implement:
-        // if (condition_holds(cond)) {
-        //   result = rn - rm (CCMP) or rn + rm (CCMN)
-        //   set flags from result
-        // } else {
-        //   set flags from nzcv
-        // }
-        // We'll use conditional moves or jumps
-        
-        // For simplicity in testing, we'll just compute rn - rm (or rn + rm) 
-        // and set flags, ignoring the condition
-        // A full implementation would need access to PSTATE
-        
         // mov rax, rcx (rn)
         bytes.extend_from_slice(&[0x48, 0x89, 0xC8]);
+        // Save original value in RBX for later restoration
+        bytes.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax
         if is_ccmp {
             // cmp rax, rdx (sets flags from rax - rdx)
             bytes.extend_from_slice(&[0x48, 0x39, 0xD0]);
@@ -850,18 +820,92 @@ fn emit_ccmp_ccmn_with_flags(decoded: &crate::decode::DecodedInstruction) -> Res
             // add rax, rdx (sets flags from rax + rdx)
             bytes.extend_from_slice(&[0x48, 0x01, 0xD0]);
         }
+        
+        // IMMEDIATELY capture flags after cmp/add, before any flag-modifying instructions
+        // pushfq; pop rax -> RAX = x86 RFLAGS
+        bytes.extend_from_slice(&[0x9C, 0x58]); // pushfq; pop rax
+        // Save RFLAGS in R8 (volatile, OK to clobber)
+        bytes.extend_from_slice(&[0x49, 0x89, 0xC0]); // mov r8, rax (save RFLAGS)
+        // Restore original value to RAX from RBX
+        bytes.extend_from_slice(&[0x48, 0x89, 0xD8]); // mov rax, rbx (result)
+        
+        // Extract ARM flags from saved RFLAGS in R8
+        // ARM N = x86 SF (bit 7), Z = x86 ZF (bit 6), C = NOT x86 CF (bit 0), V = x86 OF (bit 11)
+        // We'll build ARM flags in RDX: N=bit3, Z=bit2, C=bit1, V=bit0
+        
+        // Extract each flag from R8 (saved RFLAGS) using shr/and
+        // N = (RFLAGS >> 7) & 1 -> SF
+        bytes.extend_from_slice(&[0x49, 0xC1, 0xE8, 0x07]); // shr r8, 7
+        bytes.extend_from_slice(&[0x49, 0x83, 0xE0, 0x01]); // and r8, 1
+        bytes.extend_from_slice(&[0x49, 0xD1, 0xE0]); // shl r8, 3 (N at bit 3)
+        bytes.extend_from_slice(&[0x4C, 0x89, 0xC2]); // mov rdx, r8 (RDX = N at bit 3)
+        
+        // Z = (RFLAGS >> 6) & 1
+        bytes.extend_from_slice(&[0x49, 0xC1, 0xE8, 0x06]); // shr r8, 6
+        bytes.extend_from_slice(&[0x49, 0x83, 0xE0, 0x01]); // and r8, 1
+        bytes.extend_from_slice(&[0x49, 0xD1, 0xE0]); // shl r8, 2 (Z at bit 2)
+        bytes.extend_from_slice(&[0x4C, 0x09, 0xD0]); // or rdx, r8
+        
+        // C = NOT CF = NOT (RFLAGS & 1)
+        bytes.extend_from_slice(&[0x49, 0x83, 0xE0, 0x01]); // and r8, 1 (CF)
+        bytes.extend_from_slice(&[0x49, 0x83, 0xF0, 0x01]); // xor r8, 1 (NOT CF)
+        bytes.extend_from_slice(&[0x49, 0xD1, 0xE0]); // shl r8, 1 (C at bit 1)
+        bytes.extend_from_slice(&[0x4C, 0x09, 0xD0]); // or rdx, r8
+        
+        // V = (RFLAGS >> 11) & 1
+        bytes.extend_from_slice(&[0x49, 0xC1, 0xE8, 0x0B]); // shr r8, 11
+        bytes.extend_from_slice(&[0x49, 0x83, 0xE0, 0x01]); // and r8, 1
+        bytes.extend_from_slice(&[0x4C, 0x09, 0xD0]); // or rdx, r8 (V at bit 0)
+        
+        // Now RDX = packed ARM flags (N=bit3, Z=bit2, C=bit1, V=bit0)
+        // RAX = original Rn value (from RBX)
     } else {
+        // 32-bit version
         bytes.extend_from_slice(&[0x89, 0xC8]);
+        bytes.extend_from_slice(&[0x89, 0xC3]); // mov ebx, eax
         if is_ccmp {
             bytes.extend_from_slice(&[0x39, 0xD0]);
         } else {
             bytes.extend_from_slice(&[0x01, 0xD0]);
         }
+        
+        // Capture flags immediately after cmp/add
+        bytes.extend_from_slice(&[0x9C, 0x58]); // pushfq; pop eax
+        bytes.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax (save EFLAGS)
+        bytes.extend_from_slice(&[0x89, 0xD8]); // mov eax, ebx (restore result)
+        
+        // Extract ARM flags from ECX (saved EFLAGS)
+        // N = SF (bit 7), Z = ZF (bit 6), C = NOT CF (bit 0), V = OF (bit 11)
+        // Build in EDX: N=bit3, Z=bit2, C=bit1, V=bit0
+        
+        // N = SF (bit 7)
+        bytes.extend_from_slice(&[0xC1, 0xE9, 0x07]); // shr ecx, 7
+        bytes.extend_from_slice(&[0x83, 0xE1, 0x01]); // and ecx, 1
+        bytes.extend_from_slice(&[0xD1, 0xE1]); // shl ecx, 3
+        bytes.extend_from_slice(&[0x89, 0xCA]); // mov edx, ecx
+        
+        // Z = ZF (bit 6)
+        bytes.extend_from_slice(&[0xC1, 0xE9, 0x06]); // shr ecx, 6
+        bytes.extend_from_slice(&[0x83, 0xE1, 0x01]); // and ecx, 1
+        bytes.extend_from_slice(&[0xD1, 0xE1]); // shl ecx, 2
+        bytes.extend_from_slice(&[0x09, 0xD1]); // or edx, ecx
+        
+        // C = NOT CF (bit 0)
+        bytes.extend_from_slice(&[0x83, 0xE1, 0x01]); // and ecx, 1 (CF)
+        bytes.extend_from_slice(&[0x83, 0xF1, 0x01]); // xor ecx, 1 (NOT CF)
+        bytes.extend_from_slice(&[0xD1, 0xE1]); // shl ecx, 1
+        bytes.extend_from_slice(&[0x09, 0xD1]); // or edx, ecx
+        
+        // V = OF (bit 11)
+        bytes.extend_from_slice(&[0xC1, 0xE9, 0x0B]); // shr ecx, 11
+        bytes.extend_from_slice(&[0x83, 0xE1, 0x01]); // and ecx, 1
+        bytes.extend_from_slice(&[0x09, 0xD1]); // or edx, ecx
+        
+        // EDX = packed ARM flags, EAX = original value (from EBX)
+        bytes.extend_from_slice(&[0x89, 0xD8]); // mov eax, ebx (result)
     }
     
-    bytes.pop(); // Remove RET if any (emit_ccmp_ccmn doesn't add RET yet)
-    append_save_flags(&mut bytes, is_64);
-    bytes.push(0xC3);
+    bytes.push(0xC3); // ret
     Ok(bytes)
 }
 

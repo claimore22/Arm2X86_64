@@ -11,7 +11,7 @@ pub fn decode_adc_sbc(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     let rn = (bits >> 5) & 0x1F;
     let rd = bits & 0x1F;
 
-    // Add/subtract with carry register: sf op S 1 1 0 1 0 0 0 0 ... (bits 24-28 = 11010, bit23 = 0)
+    // ADC/SBC (register): sf op S 1 1 0 1 0 0 0 0 ... (bits 28-24 = 11010, bit23 = 0)
     if ((bits >> 24) & 0x1F) != 0b11010 {
         return Err(DecodeError::UndefinedInstruction);
     }

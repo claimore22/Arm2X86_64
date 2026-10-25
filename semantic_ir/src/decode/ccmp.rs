@@ -14,7 +14,7 @@ pub fn decode_ccmp(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     if ((bits >> 24) & 0x1F) != 0x1A { return Err(DecodeError::UndefinedInstruction); }
     // bit23 not required for CCMP
 
-    let mnemonic = if op == 1 { "CCMP" } else { "CCMN" };
+    let mnemonic = if op == 0 { "CCMP" } else { "CCMN" };
     let width = if sf == 1 { BitWidth::W64 } else { BitWidth::W32 };
     fn to_reg(idx: u8, w: BitWidth) -> Result<Reg, DecodeError> {
         match Reg::x(idx) {

@@ -73,7 +73,7 @@ fn encode(op: Op, width: BitWidth, shift: ShiftKind, amount: u32, rd: u8, rn: u8
     bits |= op.op0() << 29;
     bits |= 1 << 28;
     bits |= 1 << 25;
-    bits |= shift_bits << 22;
+    bits |= shift_bits << 21;  // Fixed: shift field is bits 22-21, not 23-22
     bits |= (rm as u32) << 16;
     bits |= amount << 10;
     bits |= (rn as u32) << 5;

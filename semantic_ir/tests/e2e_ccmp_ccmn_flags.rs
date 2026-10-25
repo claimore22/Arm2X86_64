@@ -8,18 +8,15 @@ use common::extract_arm_flags_from_x86;
 #[test]
 fn ccmp_ccmn_flags() {
     // CCMP X1, X2, #0, EQ
-    // ARM CCMP encoding per decode_ccmp:
-    // bits 24-28 = 0x1A (11010) for is_ccmp predicate
-    // bit 31 = sf = 1 (64-bit)
-    // bit 30 = op = 1 (CCMP)
-    // bits 24-28 = 0x1A = 11010
-    // rm = 2 (X2) at bits 16-20
-    // cond = 0 (EQ) at bits 12-15
-    // rn = 1 (X1) at bits 5-9
-    // rd = 1 (X1) at bits 0-4
-    // nzcv = 1 at bits 0-3 (V=1)
-    // = 0xDA020021
-    let bits = 0xDA020021u32;
+    // ARM CCMP encoding: sf=1, op=0 (CCMP), S=1, bits 28-24=0x1A, bit23=0 (part of 00000 field)
+    // Bits 31-24: sf(1) op(0) S(1) 1 1 0 1 0 = 10111010 = 0xBA
+    // Bits 23-16: 0000 0010 (sh=000, Rm=2) = 0x02
+    // Bits 15-8: 0000 0000 (cond=0) 00 = 0x00? Wait, cond is 4 bits at 15-12, then 00 at 11-10
+    // Rn=1 at bits 9-5, Rd=1 at bits 4-0
+    // Let's build: 0xBA 0x02 0x00 0x21? 
+    // Actually: bits 31-24=0xBA, 23-16=0x02, 15-8=0x00, 7-0=0x21
+    // 0xBA020021
+    let bits = 0xBA020021u32;
     let decoded = decode_instruction(bits).unwrap();
 
             println!("decoded: mnemonic={} rd={:?} rn={:?} rm={:?} shift_amount={} imm={}", decoded.mnemonic, decoded.rd, decoded.rn, decoded.rm, decoded.shift_amount, decoded.imm);

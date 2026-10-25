@@ -11,7 +11,6 @@ pub fn decode_logical(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     let imm6 = (bits >> 10) & 0x3F;
     let rn = (bits >> 5) & 0x1F;
     let rd = bits & 0x1F;
-
     let not = (bits >> 21) & 1 == 1;
     let mnemonic = match (op0, not) {
         (0, false) => "AND",
@@ -36,8 +35,16 @@ pub fn decode_logical(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     } else {
         BitWidth::W32
     };
+    // For register shift (bit 20 = 1), shift amount comes from register.
+    // For immediate shift (bit 20 = 0), shift amount is in bits 15-10 (imm6).
+    let bit20 = (bits >> 20) & 1;
+    let shift_amount = if bit20 == 0 {
+        imm6
+    } else {
+        0 // Register shift, amount comes from register at runtime
+    };
     let max_shift = if width == BitWidth::W64 { 63u32 } else { 31u32 };
-    if imm6 > max_shift {
+    if bit20 == 0 && imm6 > max_shift {
         return Err(DecodeError::InvalidShift);
     }
     fn to_reg(idx: u8, w: BitWidth) -> Result<Reg, DecodeError> {
@@ -60,7 +67,7 @@ pub fn decode_logical(bits: u32) -> Result<DecodedInstruction, DecodeError> {
         rn: to_reg(rn as u8, width)?,
         rm: to_reg(rm as u8, width)?,
         shift: shift_kind,
-        shift_amount: imm6,
+        shift_amount,
         imm: 0,
         n: 0,
         width,
