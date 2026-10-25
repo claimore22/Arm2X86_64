@@ -2,6 +2,7 @@ pub mod adc_sbc;
 pub mod add_sub;
 pub mod addsub_flags;
 pub mod addsub_imm;
+pub mod adr_adrp;
 pub mod bitfield;
 pub mod cbz_cbnz;
 pub mod ccmp;
@@ -77,13 +78,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
     // HINT: bits 31-8 = 0xD50320
     let is_hint = (bits >> 8) == 0xD50320;
-    // CBZ/CBNZ: bits 30-24 = 101101x (0x5A for CBZ), 1011011 (0x5B for CBNZ)
-// Note: (bits>>24)&0x7F extracts bits 30-24 (bit 31 is SF)
-// Additional check: bits 30-28 = 101 (5) distinguishes from ADC/SBC (010)
-// Also exclude ADC/SBC pattern (bits 28-24 = 0x1A)
-    let is_cbz_cbnz = (((bits >> 24) & 0x7F) == 0x5A || ((bits >> 24) & 0x7F) == 0x5B)
-        && ((bits >> 28) & 0x7) == 0x5  // bits 30-28 = 101
-        && ((bits >> 24) & 0x1F) != 0x1A;  // exclude ADC/SBC (bits 28-24 = 0x1A)
+    // ADR/ADRP: bits 31-24 = 00010000 (0x10) for ADR, 10010000 (0x90) for ADRP
+    let is_adr_adrp = ((bits >> 24) & 0xFF) == 0x10 || ((bits >> 24) & 0xFF) == 0x90;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
     let is_extend = false;
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
@@ -117,6 +113,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         hint::decode_hint(bits)
     } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
+    } else if is_adr_adrp {
+        adr_adrp::decode_adr_adrp(bits)
     } else if is_addsub_imm {
         addsub_imm::decode_addsub_imm(bits)
     } else if is_addsub_flags {
