@@ -13,6 +13,7 @@ pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
 pub mod multiply;
+pub mod tbz_tbnz;
 pub mod unary;
 
 use crate::expr::{BinOp, Expr, UnaryOp};
@@ -71,6 +72,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     // EXTR (Extract register): bits 28-22 = 110001111 (0x18F), N=0, opc=11
     // bits 31-22: SF 11 0 001111
     let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
+    // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
+    let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
     // CBZ/CBNZ: bits 30-24 = 101101x (0x5A for CBZ), 1011011 (0x5B for CBNZ)
 // Note: (bits>>24)&0x7F extracts bits 30-24 (bit 31 is SF)
 // Additional check: bits 30-28 = 101 (5) distinguishes from ADC/SBC (010)
@@ -107,6 +110,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         unary::decode_unary(bits)
     } else if is_extr {
         extr::decode_extr(bits)
+    } else if is_tbz_tbnz {
+        tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_addsub_imm {
         addsub_imm::decode_addsub_imm(bits)
     } else if is_addsub_flags {
