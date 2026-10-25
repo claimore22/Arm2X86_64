@@ -4,6 +4,7 @@ pub mod addsub_flags;
 pub mod addsub_imm;
 pub mod adr_adrp;
 pub mod bitfield;
+pub mod branch_imm;
 pub mod branch_reg;
 pub mod cbz_cbnz;
 pub mod ccmp;
@@ -85,6 +86,13 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_branch_reg = ((bits >> 24) & 0xFF) == 0xD6
         && ((bits >> 10) & 0x7FF) == 0x7C0
         && ((bits >> 4) & 1) == 0;
+    // Branch immediate: B/BL/B.cond
+    // B: bits 31-26 = 000101 (0x05)
+    // BL: bits 31-26 = 100101 (0x25)
+    // B.cond: bits 31-24 = 01010100 (0x54)
+    let is_branch_imm = ((bits >> 26) & 0x3F) == 0b000101
+        || ((bits >> 26) & 0x3F) == 0b100101
+        || ((bits >> 24) & 0xFF) == 0x54;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
     let is_extend = false;
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
@@ -122,6 +130,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         adr_adrp::decode_adr_adrp(bits)
     } else if is_branch_reg {
         branch_reg::decode_branch_reg(bits)
+    } else if is_branch_imm {
+        branch_imm::decode_branch_imm(bits)
     } else if is_addsub_imm {
         addsub_imm::decode_addsub_imm(bits)
     } else if is_addsub_flags {
