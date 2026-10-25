@@ -11,6 +11,7 @@ pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
 pub mod multiply;
+pub mod unary;
 
 use crate::expr::{BinOp, Expr, UnaryOp};
 use crate::instruction::{Instruction, InstructionId};
@@ -48,9 +49,9 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     // ADC/SBC: bits 28-24 = 11010 (0x1A), bit 28 = 1, bit 29 = 0 (S=0), bit 23 = 0
     let is_adc_sbc = ((bits >> 24) & 0x1F) == 0x1A && ((bits >> 29) & 1) == 0 && ((bits >> 23) & 1) == 0;
     
-    // ADD/SUB (shifted register): bits 28-24 = 10010 (0x12), bit 28 = 1, bit 23 = 0
+    // ADD/SUB (shifted register): bits 28-24 = 10010 (0x12), bit 28 = 1, bit 23 = 0, bits 22-20 = 110 (0x6)
     // Standard encoding: 0x92020020 for ADD, 0xD2020020 for SUB
-    let is_add_sub = ((bits >> 24) & 0x1F) == 0x12 && ((bits >> 23) & 1) == 0;
+    let is_add_sub = ((bits >> 24) & 0x1F) == 0x12 && ((bits >> 23) & 1) == 0 && ((bits >> 20) & 0x7) == 0x6;
     
     // Logical shifted: bits 28-24 = 01010 (0x0A) for N=0, bit 28 = 0, bit 23 = 0
     // This matches compiler output for AND/ORR/EOR/ANDS (0x8A, 0xAA, 0xCA, 0xEA)
@@ -61,14 +62,20 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_bitfield = ((bits >> 24) & 0x1F) == 0b10011;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
     let is_extend = false;
+    // Data Processing - 1 Source (REV, REV16, REV32, REV64, CLZ, CLS, RBIT)
+// bits 27-23 = 10101 (0x15), bits 22-19 = 1100 (0xC)
+    let is_unary = ((bits >> 23) & 0x1F) == 0b10101
+        && ((bits >> 19) & 0xF) == 0xC;
+    let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
+    let is_extend = false;
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
     let is_cond_select = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && !(( (bits >> 10) & 0x3F == 0x08) || ((bits >> 10) & 0x3F == 0x0C));
     let is_divide = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && (t == 0x02 || t == 0x03);
-    let is_logical_imm = ((bits >> 24) & 0x1F) == 0b10010 && ((bits >> 23) & 1) == 0 && ((bits >> 21) & 1) == 1;
+    let is_logical_imm = ((bits >> 20) & 0xFF) == 0x24 && ((bits >> 23) & 1) == 0;
     // ADC/SBC: bits 28-24 = 11010 (0x1A), bit 28 = 1, bit 29 = 0 (S=0), bit 23 = 0
     let is_adc_sbc = ((bits >> 28) & 1) == 1 && ((bits >> 29) & 1) == 0 && ((bits >> 24) & 0x1F) == 0x1A && ((bits >> 23) & 1) == 0;
     let is_multiply = ((bits >> 24) & 0x1F) == 0b11011;
-    let is_logical_imm = ((bits >> 24) & 0x1F) == 0b10010 && ((bits >> 23) & 1) == 0 && ((bits >> 21) & 1) == 1;
+    let is_logical_imm = ((bits >> 20) & 0xFF) == 0x24 && ((bits >> 23) & 1) == 0;
     
     if is_ccmp {
         ccmp::decode_ccmp(bits)
@@ -84,6 +91,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         move_wide::decode_move_wide(bits)
     } else if is_bitfield {
         bitfield::decode_bitfield(bits)
+    } else if is_unary {
+        unary::decode_unary(bits)
     } else if is_addsub_imm {
         addsub_imm::decode_addsub_imm(bits)
     } else if is_addsub_flags {

@@ -6,18 +6,31 @@ use crate::primitives::ShiftKind;
 pub fn decode_logical_imm(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     let sf = (bits >> 31) & 1;
     let opc = (bits >> 29) & 3;
-    let n = (bits >> 22) & 1;
+    let n = (bits >> 28) & 1;
     let immr = (bits >> 16) & 0x3F;
     let imms = (bits >> 10) & 0x3F;
     let rn = (bits >> 5) & 0x1F;
     let rd = bits & 0x1F;
 
+    // Verify fixed pattern: bits 27-20 = 00100100 (0x24)
+    if ((bits >> 20) & 0xFF) != 0x24 {
+        return Err(DecodeError::UndefinedInstruction);
+    }
+    // bit 23 = 0 (part of fixed pattern)
+    if ((bits >> 23) & 1) != 0 {
+        return Err(DecodeError::UndefinedInstruction);
+    }
+    // For 64-bit, N must be 1
+    if sf == 1 && n != 1 {
+        return Err(DecodeError::UndefinedInstruction);
+    }
+    // For 32-bit, N must be 0
+    if sf == 0 && n != 0 {
+        return Err(DecodeError::UndefinedInstruction);
+    }
+
     if sf == 0 {
         return Err(DecodeError::UndefinedInstruction); // W32 not yet supported (decode ambiguity)
-    }
-    if n == 0 && (immr & 0x20) == 0 {
-        // require bit21=1 for 64-bit to avoid collision with ADD shifted
-        return Err(DecodeError::UndefinedInstruction);
     }
 
     let mnemonic = match opc {
@@ -33,7 +46,13 @@ pub fn decode_logical_imm(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     fn to_reg(idx: u8, w: BitWidth) -> Result<Reg, DecodeError> {
         match Reg::x(idx) {
             Some(Reg::X(n)) if w == BitWidth::W32 => Ok(Reg::W(n)),
-            Some(Reg::Xzr) => { if w == BitWidth::W32 { Ok(Reg::Wzr) } else { Ok(Reg::Xzr) } }
+            Some(Reg::Xzr) => {
+                if w == BitWidth::W32 {
+                    Ok(Reg::Wzr)
+                } else {
+                    Ok(Reg::Xzr)
+                }
+            }
             Some(r) => Ok(r),
             None => Err(DecodeError::InvalidRegister),
         }

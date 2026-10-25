@@ -6,10 +6,10 @@ use semantic_ir::{validate_instruction, BitWidth};
 
 #[test]
 fn logical_imm_x64() {
-    // AND X0, X1, #0xFFFF0000FFFF0000 (immN=1, imms=0x1F, immr=0, N=1)
-    // Encoding: sf=1, opc=00, N=1, immr=0, imms=0x1F, Rn=1, Rd=0
-    // Bit 21 must be 1 for 64-bit logical immediate to distinguish from ADD shifted
-    let bits = 0x9221F020u32; // AND X0, X1, #0xFFFF0000FFFF0000
+    // ANDI X0, X1, #0xFFFF0000FFFF0000 (N=1, imms=0x1F, immr=0)
+    // Encoding: sf=1, opc=00, N=1, fixed=00100100, immr=0, imms=0x1F, Rn=1, Rd=0
+    // = 0x92407C20
+    let bits = 0x92407C20u32; // ANDI X0, X1, #0xFFFF0000FFFF0000
     let decoded = decode_instruction(bits).unwrap();
     assert_eq!(decoded.mnemonic, "ANDI");
     let instruction = lower_to_ir(&decoded);
