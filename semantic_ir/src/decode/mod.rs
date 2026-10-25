@@ -9,6 +9,7 @@ pub mod cond_select;
 pub mod divide;
 pub mod extend;
 pub mod extr;
+pub mod hint;
 pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
@@ -74,6 +75,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
     // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
     let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
+    // HINT: bits 31-8 = 0xD50320
+    let is_hint = (bits >> 8) == 0xD50320;
     // CBZ/CBNZ: bits 30-24 = 101101x (0x5A for CBZ), 1011011 (0x5B for CBNZ)
 // Note: (bits>>24)&0x7F extracts bits 30-24 (bit 31 is SF)
 // Additional check: bits 30-28 = 101 (5) distinguishes from ADC/SBC (010)
@@ -110,6 +113,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         unary::decode_unary(bits)
     } else if is_extr {
         extr::decode_extr(bits)
+    } else if is_hint {
+        hint::decode_hint(bits)
     } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_addsub_imm {
