@@ -7,6 +7,7 @@ pub mod ccmp;
 pub mod cond_select;
 pub mod divide;
 pub mod extend;
+pub mod extr;
 pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
@@ -66,6 +67,9 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
 // bits 27-23 = 10101 (0x15), bits 22-19 = 1100 (0xC)
     let is_unary = ((bits >> 23) & 0x1F) == 0b10101
         && ((bits >> 19) & 0xF) == 0xC;
+    // EXTR (Extract register): bits 28-22 = 110001111 (0x18F), N=0, opc=11
+    // bits 31-22: SF 11 0 001111
+    let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
     let is_extend = false;
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
@@ -93,6 +97,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         bitfield::decode_bitfield(bits)
     } else if is_unary {
         unary::decode_unary(bits)
+    } else if is_extr {
+        extr::decode_extr(bits)
     } else if is_addsub_imm {
         addsub_imm::decode_addsub_imm(bits)
     } else if is_addsub_flags {
