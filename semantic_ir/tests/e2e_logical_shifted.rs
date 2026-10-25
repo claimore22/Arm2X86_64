@@ -7,7 +7,8 @@ use semantic_ir::{validate_instruction, BitWidth, Reg};
 
 #[test]
 fn and_shifted_end_to_end() {
-    let bits: u32 = 0x8A020020; // AND X0, X1, X2, LSL #0
+    // AND X0, X1, X2, LSL #0 = 0x94020020
+    let bits: u32 = 0x94020020;
     let decoded = decode_instruction(bits).unwrap();
     assert_eq!(decoded.mnemonic, "AND");
     let instruction = lower_to_ir(&decoded);
@@ -28,7 +29,7 @@ fn and_shifted_end_to_end() {
 
 #[test]
 fn orr_eor_ands_basic() {
-    for (bits, op) in [(0xAA020020u32,"ORR"),(0xCA020020u32,"EOR"),(0xEA020020u32,"ANDS")] {
+    for (bits, op) in [(0xB4020020u32,"ORR"),(0xD4020020u32,"EOR"),(0xF4020020u32,"ANDS")] {
         let decoded = decode_instruction(bits).unwrap();
         assert_eq!(decoded.mnemonic, op);
         let instruction = lower_to_ir(&decoded);

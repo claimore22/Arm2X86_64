@@ -3,6 +3,7 @@ pub mod add_sub;
 pub mod addsub_flags;
 pub mod addsub_imm;
 pub mod bitfield;
+pub mod cbz_cbnz;
 pub mod ccmp;
 pub mod cond_select;
 pub mod divide;
@@ -54,9 +55,9 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     // Standard encoding: 0x92020020 for ADD, 0xD2020020 for SUB
     let is_add_sub = ((bits >> 24) & 0x1F) == 0x12 && ((bits >> 23) & 1) == 0 && ((bits >> 20) & 0x7) == 0x6;
     
-    // Logical shifted: bits 28-24 = 01010 (0x0A) for N=0, bit 28 = 0, bit 23 = 0
-    // This matches compiler output for AND/ORR/EOR/ANDS (0x8A, 0xAA, 0xCA, 0xEA)
-    let is_logical = ((bits >> 24) & 0x1F) == 0x0A && ((bits >> 23) & 1) == 0;
+    // Logical shifted: bits 28-24 = 10100 (0x14), bit 28 = 0, bit 23 = 0
+    // This matches compiler output for AND/ORR/EOR/ANDS (0x94, 0xB4, 0xD4, 0xF4)
+    let is_logical = ((bits >> 24) & 0x1F) == 0x14 && ((bits >> 23) & 1) == 0;
     let is_move_wide = ((bits >> 28) & 1) == 1
         && ((bits >> 24) & 0x0F) == 0b0010
         && ((bits >> 23) & 1) == 1;
@@ -70,6 +71,13 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     // EXTR (Extract register): bits 28-22 = 110001111 (0x18F), N=0, opc=11
     // bits 31-22: SF 11 0 001111
     let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
+    // CBZ/CBNZ: bits 30-24 = 101101x (0x5A for CBZ), 1011011 (0x5B for CBNZ)
+// Note: (bits>>24)&0x7F extracts bits 30-24 (bit 31 is SF)
+// Additional check: bits 30-28 = 101 (5) distinguishes from ADC/SBC (010)
+// Also exclude ADC/SBC pattern (bits 28-24 = 0x1A)
+    let is_cbz_cbnz = (((bits >> 24) & 0x7F) == 0x5A || ((bits >> 24) & 0x7F) == 0x5B)
+        && ((bits >> 28) & 0x7) == 0x5  // bits 30-28 = 101
+        && ((bits >> 24) & 0x1F) != 0x1A;  // exclude ADC/SBC (bits 28-24 = 0x1A)
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
     let is_extend = false;
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;

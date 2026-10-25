@@ -69,7 +69,7 @@ fn qemu_differential_and() {
         (0x123456789ABCDEF0, 0x0F0F0F0F0F0F0F0F),
     ];
     for &(x1, x2) in cases {
-        run_case(0x8A020020u32, common::ArithmeticOp::And, BitWidth::W64, semantic_ir::primitives::ShiftKind::Lsl, 0, x1, x2);
+        run_case(common::ArithmeticOp::And.instruction_word(), common::ArithmeticOp::And, BitWidth::W64, semantic_ir::primitives::ShiftKind::Lsl, 0, x1, x2);
     }
 }
 
@@ -82,7 +82,7 @@ fn qemu_differential_orr() {
         (0x123456789ABCDEF0, 0x0F0F0F0F0F0F0F0F),
     ];
     for &(x1, x2) in cases {
-        run_case(0xAA020020u32, common::ArithmeticOp::Or, BitWidth::W64, semantic_ir::primitives::ShiftKind::Lsl, 0, x1, x2);
+        run_case(common::ArithmeticOp::Or.instruction_word(), common::ArithmeticOp::Or, BitWidth::W64, semantic_ir::primitives::ShiftKind::Lsl, 0, x1, x2);
     }
 }
 
@@ -95,7 +95,7 @@ fn qemu_differential_eor() {
         (0x123456789ABCDEF0, 0x0F0F0F0F0F0F0F0F),
     ];
     for &(x1, x2) in cases {
-        run_case(0xCA020020u32, common::ArithmeticOp::Xor, BitWidth::W64, semantic_ir::primitives::ShiftKind::Lsl, 0, x1, x2);
+        run_case(common::ArithmeticOp::Xor.instruction_word(), common::ArithmeticOp::Xor, BitWidth::W64, semantic_ir::primitives::ShiftKind::Lsl, 0, x1, x2);
     }
 }
 

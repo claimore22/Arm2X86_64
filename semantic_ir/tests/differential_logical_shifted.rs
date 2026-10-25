@@ -8,10 +8,10 @@ use semantic_ir::{validate_instruction, BitWidth, Reg};
 fn logical_qemu() {
     assert!(wsl_qemu_available());
     for (bits, op) in [
-        (0x8A020020u32, common::ArithmeticOp::And),
-        (0xAA020020u32, common::ArithmeticOp::Or),
-        (0xCA020020u32, common::ArithmeticOp::Xor),
-        (0xEA020020u32, common::ArithmeticOp::Ands),
+        (0x94020020u32, common::ArithmeticOp::And),
+        (0xB4020020u32, common::ArithmeticOp::Or),
+        (0xD4020020u32, common::ArithmeticOp::Xor),
+        (0xF4020020u32, common::ArithmeticOp::Ands),
     ] {
         let decoded = decode_instruction(bits).unwrap();
         let instruction = lower_to_ir(&decoded);
