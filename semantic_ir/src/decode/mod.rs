@@ -14,6 +14,7 @@ pub mod divide;
 pub mod extend;
 pub mod extr;
 pub mod hint;
+pub mod load_store;
 pub mod msr_mrs;
 pub mod logical;
 pub mod logical_imm;
@@ -27,7 +28,7 @@ use crate::expr::{BinOp, Expr, UnaryOp};
 use crate::instruction::{Instruction, InstructionId};
 use crate::primitives::{Condition, ExtendKind, ShiftKind};
 use crate::stmt::Stmt;
-use crate::types::{BitWidth, Flag, Reg, ValueType, Width};
+use crate::types::{BitWidth, Flag, MemAccess, MemOrdering, MemSize, Reg, ValueType, Width};
 use crate::Provenance;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +82,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
     // HINT: bits 31-8 = 0xD50320
     let is_hint = (bits >> 8) == 0xD50320;
+    // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
+    let is_load_store = ((bits >> 24) & 0x3F) == 0b111001;
     // Barrier: ISB/DSB/DMB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
     let is_barrier = ((bits >> 24) & 0xFF) == 0xD5
         && ((bits >> 20) & 0xF) == 0
@@ -141,6 +144,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         extr::decode_extr(bits)
     } else if is_hint {
         hint::decode_hint(bits)
+    } else if is_load_store {
+        load_store::decode_load_store(bits)
     } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_adr_adrp {
@@ -175,7 +180,33 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
 }
 
 pub fn lower_to_ir(decoded: &DecodedInstruction) -> Instruction {
-      if decoded.mnemonic == "ADDX" || decoded.mnemonic == "SUBX" {
+       if decoded.mnemonic == "LDR" || decoded.mnemonic == "STR" {
+           let mem_size = match decoded.width {
+               BitWidth::W8 => MemSize::Bits8,
+               BitWidth::W16 => MemSize::Bits16,
+               BitWidth::W32 => MemSize::Bits32,
+               BitWidth::W64 => MemSize::Bits64,
+               _ => MemSize::Bits64,
+           };
+           let base = Expr::ReadReg { reg: decoded.rn, width: decoded.width };
+           let offset = Expr::Const { value: decoded.imm as u128, ty: decoded.width };
+           let address = Expr::Binary { op: BinOp::Add, left: Box::new(base), right: Box::new(offset), ty: ValueType::Bits(Width::Fixed(decoded.width)) };
+           let semantics = if decoded.mnemonic == "LDR" {
+               vec![Stmt::WriteReg { reg: decoded.rd, value: Expr::MemRead { address: Box::new(address), size: mem_size } }]
+           } else {
+               let value = Expr::ReadReg { reg: decoded.rd, width: decoded.width };
+               vec![Stmt::MemWrite { address, value, size: mem_size, access: MemAccess::Write, ordering: MemOrdering::Relaxed }]
+           };
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (mem)", decoded.mnemonic)) },
+               operands: Vec::new(),
+               required_features: Vec::new(),
+               decode: None,
+               semantics,
+               provenance: Provenance { source_path: "load_store.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "ADDX" || decoded.mnemonic == "SUBX" {
           let rm_width = match decoded.rm {
               Reg::W(_) | Reg::Wzr => BitWidth::W32,
               _ => BitWidth::W64,
