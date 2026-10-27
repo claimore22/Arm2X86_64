@@ -21,11 +21,14 @@ pub fn decode_adc_sbc(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     if ((bits >> 10) & 0x3F) != 0 {
         return Err(DecodeError::UndefinedInstruction);
     }
-    let mnemonic = match (op, s) {
-        (0, 0) => "ADC",
-        (1, 0) => "SBC",
-        (0, 1) => "ADCS",
-        _ => "SBCS",
+    let mnemonic = if op == 0 && s == 0 {
+        "ADC"
+    } else if op == 1 && s == 0 {
+        "SBC"
+    } else if op == 0 {
+        "ADCS"
+    } else {
+        "SBCS"
     };
     let width = if sf == 1 { BitWidth::W64 } else { BitWidth::W32 };
     fn to_reg(idx: u8, w: BitWidth) -> Result<Reg, DecodeError> {
