@@ -10,7 +10,7 @@ pub fn decode_cbz_cbnz(bits: u32) -> Result<DecodedInstruction, DecodeError> {
 
     // Verify fixed bits: bits 30-24 = 1011010 (0x5A for CBZ), 1011011 (0x5B for CBNZ)
     let top7 = (bits >> 24) & 0x7F;
-    if top7 != 0x5A && top7 != 0x5B {
+    if top7 != 0x34 && top7 != 0x35 {
         return Err(DecodeError::UndefinedInstruction);
     }
 
