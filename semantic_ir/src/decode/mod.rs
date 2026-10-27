@@ -14,6 +14,7 @@ pub mod divide;
 pub mod extend;
 pub mod extr;
 pub mod hint;
+pub mod load_store;
 pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
@@ -78,10 +79,19 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     // EXTR (Extract register): bits 28-22 = 110001111 (0x18F), N=0, opc=11
     // bits 31-22: SF 11 0 001111
     let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
-    // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
-    let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
     // HINT: bits 31-8 = 0xD50320
     let is_hint = (bits >> 8) == 0xD50320;
+    // Barrier: ISB/DSB/DMB
+    let is_barrier = ((bits >> 24) & 0xFF) == 0xD5
+        && ((bits >> 20) & 0xF) == 0
+        && ((bits >> 16) & 7) == 3
+        && ((bits >> 12) & 0xF) == 3
+        && ((bits >> 5) & 7) >= 4 && ((bits >> 5) & 7) <= 6
+        && (bits & 0x1F) == 0x1F;
+    // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
+    let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
+    // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
+    let is_load_store = ((bits >> 24) & 0x3F) == 0b111001;
     // Barrier: DSB/DMB/ISB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
     let is_barrier = ((bits >> 24) & 0xFF) == 0xD5  // system instruction category
         && ((bits >> 20) & 0xF) == 0  // bits 23-20 = 0
@@ -136,6 +146,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         extr::decode_extr(bits)
     } else if is_hint {
         hint::decode_hint(bits)
+    } else if is_load_store {
+        load_store::decode_load_store(bits)
     } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_adr_adrp {
