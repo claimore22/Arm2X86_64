@@ -3,6 +3,7 @@ pub mod add_sub;
 pub mod addsub_flags;
 pub mod addsub_imm;
 pub mod adr_adrp;
+pub mod atomic;
 pub mod barrier;
 pub mod bitfield;
 pub mod branch_imm;
@@ -86,7 +87,30 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
     let is_load_store = ((bits >> 24) & 0x3F) == 0b111001;
     let is_load_store_reg = ((bits >> 24) & 0x3F) == 0x38;
-    // Barrier: ISB/DSB/DMB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
+    let is_ldxr_excl = ((bits >> 24) & 0x3F) == 0b001000
+        && ((bits >> 23) & 1) == 0
+        && ((bits >> 22) & 1) == 1
+        && ((bits >> 21) & 1) == 0
+        && ((bits >> 16) & 0x1F) == 0b11111
+        && ((bits >> 10) & 0x1F) == 0b11111;
+    let is_stxr_excl = ((bits >> 24) & 0x3F) == 0b001000
+        && ((bits >> 23) & 1) == 0
+        && ((bits >> 22) & 1) == 0
+        && ((bits >> 21) & 1) == 0
+        && ((bits >> 10) & 0x1F) == 0b11111;
+    let is_swp_atomic = ((bits >> 24) & 0x3F) == 0b111000
+        && ((bits >> 10) & 0x3F) == 0b100000
+        && ((bits >> 21) & 1) == 1;
+    let is_cas_atomic = ((bits >> 24) & 0x3F) == 0b001000
+        && ((bits >> 23) & 1) == 1
+        && ((bits >> 21) & 1) == 1
+        && ((bits >> 10) & 0x1F) == 0b11111
+        && ((bits >> 31) & 1) == 1;
+    let is_casp_atomic = ((bits >> 24) & 0x3F) == 0b001000
+        && ((bits >> 23) & 1) == 1
+        && ((bits >> 21) & 1) == 1
+        && ((bits >> 10) & 0x1F) == 0b11111
+        && ((bits >> 31) & 1) == 0;    // Barrier: ISB/DSB/DMB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
     let is_barrier = ((bits >> 24) & 0xFF) == 0xD5
         && ((bits >> 20) & 0xF) == 0
         && ((bits >> 16) & 7) == 3
@@ -148,9 +172,18 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         hint::decode_hint(bits)
     } else if is_load_store {
         load_store::decode_load_store(bits)
+    } else if is_ldxr_excl {
+        atomic::decode_ldxr(bits)
+    } else if is_stxr_excl {
+        atomic::decode_stxr(bits)
+    } else if is_swp_atomic {
+        atomic::decode_swp(bits)
+    } else if is_casp_atomic {
+        atomic::decode_casp(bits)
+    } else if is_cas_atomic {
+        atomic::decode_cas(bits)
     } else if is_load_store_reg {
-        load_store_reg::decode_load_store_reg(bits)
-    } else if is_tbz_tbnz {
+        load_store_reg::decode_load_store_reg(bits)    } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_adr_adrp {
         adr_adrp::decode_adr_adrp(bits)
@@ -184,6 +217,211 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
 }
 
 pub fn lower_to_ir(decoded: &DecodedInstruction) -> Instruction {
+       // Branch immediate
+       if decoded.mnemonic == "B" || decoded.mnemonic == "BL" {
+           let offset = ((decoded.imm as i32) << 2) as i64;
+           let target = Expr::Binary {
+               op: BinOp::Add,
+               left: Box::new(Expr::ReadSpecial { reg: crate::types::SpecialReg::Pc64, width: decoded.width }),
+               right: Box::new(Expr::Const { value: offset as u128, ty: decoded.width }),
+               ty: ValueType::Bits(Width::Fixed(decoded.width)),
+           };
+           let semantics = vec![Stmt::Branch { target }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (branch)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "branch_imm.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "B.cond" {
+           let off = ((decoded.imm as i32) << 2) as i64;
+           let target = Expr::Binary {
+               op: BinOp::Add,
+               left: Box::new(Expr::ReadSpecial { reg: crate::types::SpecialReg::Pc64, width: decoded.width }),
+               right: Box::new(Expr::Const { value: off as u128, ty: decoded.width }),
+               ty: ValueType::Bits(Width::Fixed(decoded.width)),
+           };
+           let cond = match decoded.n {
+               0 => Condition::Eq, 1 => Condition::Ne, 2 => Condition::Cs, 3 => Condition::Cc,
+               4 => Condition::Mi, 5 => Condition::Pl, 6 => Condition::Vs, 7 => Condition::Vc,
+               8 => Condition::Hi, 9 => Condition::Ls, 10 => Condition::Ge, 11 => Condition::Lt,
+               12 => Condition::Gt, 13 => Condition::Le, _ => Condition::Al,
+           };
+           let condition = Expr::ConditionHolds { condition: cond };
+           let semantics = vec![Stmt::BranchConditional { condition, target }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some("B.cond (branch)".to_string()) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "branch_imm.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "BR" || decoded.mnemonic == "BLR" || decoded.mnemonic == "RET" {
+           let target = Expr::ReadReg { reg: decoded.rn, width: decoded.width };
+           let semantics = vec![Stmt::Branch { target }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (branch)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "branch_reg.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "CBZ" || decoded.mnemonic == "CBNZ" {
+           let off = ((decoded.imm as i32) << 2) as i64;
+           let target = Expr::Binary {
+               op: BinOp::Add,
+               left: Box::new(Expr::ReadSpecial { reg: crate::types::SpecialReg::Pc64, width: decoded.width }),
+               right: Box::new(Expr::Const { value: off as u128, ty: decoded.width }),
+               ty: ValueType::Bits(Width::Fixed(decoded.width)),
+           };
+           let rd = Expr::ReadReg { reg: decoded.rd, width: decoded.width };
+           let zero = Expr::Const { value: 0, ty: decoded.width };
+           let cmp = Expr::Binary { op: BinOp::Eq, left: Box::new(rd), right: Box::new(zero), ty: ValueType::Bool };
+           let condition = if decoded.mnemonic == "CBNZ" { Expr::Unary { op: crate::expr::UnaryOp::Not, value: Box::new(cmp), ty: ValueType::Bool } } else { cmp };
+           let semantics = vec![Stmt::BranchConditional { condition, target }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (branch)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "cbz.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "TBZ" || decoded.mnemonic == "TBNZ" {
+           let off = ((decoded.imm as i32) << 2) as i64;
+           let target = Expr::Binary {
+               op: BinOp::Add,
+               left: Box::new(Expr::ReadSpecial { reg: crate::types::SpecialReg::Pc64, width: decoded.width }),
+               right: Box::new(Expr::Const { value: off as u128, ty: decoded.width }),
+               ty: ValueType::Bits(Width::Fixed(decoded.width)),
+           };
+           let rd = Expr::ReadReg { reg: decoded.rd, width: decoded.width };
+           let bit = Expr::Binary {
+               op: BinOp::And,
+               left: Box::new(Expr::Shift { kind: crate::primitives::ShiftKind::Lsr, value: Box::new(rd), amount: Box::new(Expr::Const { value: decoded.shift_amount as u128, ty: decoded.width }), ty: decoded.width }),
+               right: Box::new(Expr::Const { value: 1, ty: decoded.width }),
+               ty: ValueType::Bits(Width::Fixed(decoded.width)),
+           };
+           let is_zero = Expr::Binary { op: BinOp::Eq, left: Box::new(bit), right: Box::new(Expr::Const { value: 0, ty: decoded.width }), ty: ValueType::Bool };
+           let condition = if decoded.mnemonic == "TBNZ" { Expr::Unary { op: crate::expr::UnaryOp::Not, value: Box::new(is_zero), ty: ValueType::Bool } } else { is_zero };
+           let semantics = vec![Stmt::BranchConditional { condition, target }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (branch)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "tbz.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if matches!(decoded.mnemonic.as_str(), "ISB" | "DSB" | "DMB" | "NOP" | "SEV" | "SEVL" | "WFE" | "WFI" | "YIELD" | "MSR" | "MRS") {
+           let semantics: Vec<Stmt> = Vec::new();
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (system/hint)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "system.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "SWP" || decoded.mnemonic == "SWPA" || decoded.mnemonic == "SWPL" || decoded.mnemonic == "SWPAL" {
+           let width = decoded.width;
+           let mem_size = match width { BitWidth::W32 => MemSize::Bits32, _ => MemSize::Bits64 };
+           let address = Expr::ReadReg { reg: decoded.rn, width };
+           let rs_reg = if decoded.imm <= 31 {
+               if width == BitWidth::W32 { Reg::W(decoded.imm as u8) } else { Reg::X(decoded.imm as u8) }
+           } else { Reg::Wzr };
+           let newval = Expr::ReadReg { reg: rs_reg, width };
+           let semantics = vec![
+               Stmt::AtomicSwap { dest: decoded.rd, address, value: newval, size: mem_size, ordering: MemOrdering::Relaxed },
+           ];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (atomic)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "swp.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "CAS" || decoded.mnemonic == "CASA" || decoded.mnemonic == "CASL" || decoded.mnemonic == "CASAL" {
+           let width = decoded.width;
+           let mem_size = match width { BitWidth::W32 => MemSize::Bits32, _ => MemSize::Bits64 };
+           let address = Expr::ReadReg { reg: decoded.rn, width };
+           let compare_reg = if decoded.imm <= 31 {
+               if width == BitWidth::W32 { Reg::W(decoded.imm as u8) } else { Reg::X(decoded.imm as u8) }
+           } else { Reg::Wzr };
+           let swap_reg = decoded.rd;
+           let semantics = vec![
+               Stmt::AtomicCas { address, expected: compare_reg, desired: swap_reg, size: mem_size, ordering: MemOrdering::Relaxed },
+           ];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (atomic)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "cas.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "CASP" || decoded.mnemonic == "CASPA" || decoded.mnemonic == "CASPL" || decoded.mnemonic == "CASPAL" {
+           let width = decoded.width; // per-element
+           let mem_size = if width == BitWidth::W32 { MemSize::Bits64 } else { MemSize::Bits128 };
+           let ordering = match decoded.mnemonic.as_str() {
+               "CASPAL" => MemOrdering::AcquireRelease,
+               "CASPA" => MemOrdering::Acquire,
+               "CASPL" => MemOrdering::Release,
+               _ => MemOrdering::Relaxed,
+           };
+           let rs = decoded.imm as u8;
+           let rt = match decoded.rd { Reg::X(n) | Reg::W(n) => n, _ => 0 };
+           let expected_first = if width == BitWidth::W32 { Reg::W(rs) } else { Reg::X(rs) };
+           let expected_second = if width == BitWidth::W32 { Reg::W(rs + 1) } else { Reg::X(rs + 1) };
+           let desired_first = if width == BitWidth::W32 { Reg::W(rt) } else { Reg::X(rt) };
+           let desired_second = if width == BitWidth::W32 { Reg::W(rt + 1) } else { Reg::X(rt + 1) };
+           let address = Expr::ReadReg { reg: decoded.rn, width: BitWidth::W64 };
+           let semantics = vec![Stmt::AtomicCasPair {
+               address,
+               expected_first,
+               expected_second,
+               desired_first,
+               desired_second,
+               size: mem_size,
+               ordering,
+           }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (atomic)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "casp.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+
+       if decoded.mnemonic == "LDXR" || decoded.mnemonic == "LDAXR" {
+           let mem_size = match decoded.width {
+               BitWidth::W8 => MemSize::Bits8,
+               BitWidth::W16 => MemSize::Bits16,
+               BitWidth::W32 => MemSize::Bits32,
+               BitWidth::W64 => MemSize::Bits64,
+               _ => MemSize::Bits64,
+           };
+           let address = Expr::ReadReg { reg: decoded.rn, width: decoded.width };
+           let ordering = if decoded.mnemonic == "LDAXR" { MemOrdering::Acquire } else { MemOrdering::Relaxed };
+           let semantics = vec![Stmt::AtomicLoadEx { dest: decoded.rd, address, size: mem_size, ordering }];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (atomic)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "ldxr.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
+       if decoded.mnemonic == "STXR" || decoded.mnemonic == "STLXR" {
+           let mem_size = match decoded.width {
+               BitWidth::W8 => MemSize::Bits8,
+               BitWidth::W16 => MemSize::Bits16,
+               BitWidth::W32 => MemSize::Bits32,
+               BitWidth::W64 => MemSize::Bits64,
+               _ => MemSize::Bits64,
+           };
+           let address = Expr::ReadReg { reg: decoded.rn, width: decoded.width };
+           let status_reg = if decoded.imm <= 31 {
+               if decoded.width == BitWidth::W32 { Reg::W(decoded.imm as u8) } else { Reg::X(decoded.imm as u8) }
+           } else { Reg::Wzr };
+           let status_reg_to_use = status_reg;
+           let value_to_store = Expr::ReadReg { reg: decoded.rd, width: decoded.width };
+           let ordering = if decoded.mnemonic == "STLXR" { MemOrdering::Release } else { MemOrdering::Relaxed };
+           let semantics = vec![
+               Stmt::AtomicStoreEx { status: status_reg_to_use, address, value: value_to_store, size: mem_size, ordering },
+           ];
+           return Instruction {
+               id: InstructionId { mnemonic: decoded.mnemonic.clone(), encoding: Some(format!("{} (atomic)", decoded.mnemonic)) },
+               operands: Vec::new(), required_features: Vec::new(), decode: None, semantics,
+               provenance: Provenance { source_path: "stxr.md".to_string(), source_sha256: "t".to_string(), clean_sha256: "t".to_string() },
+           };
+       }
        if decoded.mnemonic == "LDR" || decoded.mnemonic == "STR" {
            let mem_size = match decoded.width {
                BitWidth::W8 => MemSize::Bits8,

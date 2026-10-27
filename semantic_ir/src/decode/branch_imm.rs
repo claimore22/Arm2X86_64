@@ -44,7 +44,7 @@ pub fn decode_branch_imm(bits: u32) -> Result<DecodedInstruction, DecodeError> {
         shift: crate::primitives::ShiftKind::Lsl,
         shift_amount: 0,
         imm: (bits >> 5) & 0x7FFFFFF,  // Store offset as immediate
-        n: 0,
+        n: if top8 == 0x54 { (bits & 0x0F) as u8 } else { 0 },
         width,
     })
 }

@@ -69,6 +69,46 @@ pub enum Stmt {
         ordering: MemOrdering,
     },
 
+    AtomicLoadEx {
+        dest: Reg,
+        address: Expr,
+        size: MemSize,
+        ordering: MemOrdering,
+    },
+
+    AtomicStoreEx {
+        status: Reg,
+        address: Expr,
+        value: Expr,
+        size: MemSize,
+        ordering: MemOrdering,
+    },
+
+    AtomicSwap {
+        dest: Reg,
+        address: Expr,
+        value: Expr,
+        size: MemSize,
+        ordering: MemOrdering,
+    },
+
+    AtomicCas {
+        address: Expr,
+        expected: Reg,
+        desired: Reg,
+        size: MemSize,
+        ordering: MemOrdering,
+    },
+
+    AtomicCasPair {
+        address: Expr,
+        expected_first: Reg,
+        expected_second: Reg,
+        desired_first: Reg,
+        desired_second: Reg,
+        size: MemSize,
+        ordering: MemOrdering,
+    },
     MemRead {
         address: Expr,
         dest: Reg,

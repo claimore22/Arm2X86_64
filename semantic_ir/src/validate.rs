@@ -271,12 +271,37 @@ fn validate_stmt(statement: &Stmt) -> Result<(), IrError> {
 
         Stmt::MemRead { address, dest: _, size: _, .. } => {
             validate_expr(address)?;
-
             if !is_bit_vector_expr(address) {
                 return Err(IrError::BinaryOperandTypeMismatch);
             }
         }
 
+        Stmt::AtomicLoadEx { dest: _, address, size: _, ordering: _ } => {
+            validate_expr(address)?;
+            if !is_bit_vector_expr(address) { return Err(IrError::BinaryOperandTypeMismatch); }
+        }
+
+        Stmt::AtomicStoreEx { status: _, address, value, size: _, ordering: _ } => {
+            validate_expr(address)?;
+            validate_expr(value)?;
+            if !is_bit_vector_expr(address) { return Err(IrError::BinaryOperandTypeMismatch); }
+        }
+
+        Stmt::AtomicSwap { dest: _, address, value, size: _, ordering: _ } => {
+            validate_expr(address)?;
+            validate_expr(value)?;
+            if !is_bit_vector_expr(address) { return Err(IrError::BinaryOperandTypeMismatch); }
+        }
+
+        Stmt::AtomicCas { address, expected: _, desired: _, size: _, ordering: _ } => {
+            validate_expr(address)?;
+            if !is_bit_vector_expr(address) { return Err(IrError::BinaryOperandTypeMismatch); }
+        }
+
+        Stmt::AtomicCasPair { address, expected_first: _, expected_second: _, desired_first: _, desired_second: _, size: _, ordering: _ } => {
+            validate_expr(address)?;
+            if !is_bit_vector_expr(address) { return Err(IrError::BinaryOperandTypeMismatch); }
+        }
         Stmt::Let { name, value } => {
             if name.is_empty() {
                 return Err(IrError::EmptyMnemonic);

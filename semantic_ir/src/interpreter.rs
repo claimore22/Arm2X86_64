@@ -223,6 +223,99 @@ impl Interpreter {
                 "RaiseException: {:?}",
                 exc
             ))),
+            Stmt::AtomicLoadEx { dest, address, size, ordering: _ } => {
+                let addr = self.eval_expr(address)?;
+                let sz = *size;
+                let size_bytes = sz.width().bits() / 8;
+                let data = self
+                    .state
+                    .memory
+                    .load_exclusive(addr as u64, size_bytes as u64)
+                    .map_err(InterpreterError::MemoryFault)?;
+                self.write_reg(dest, &(data as u128));
+                Ok(())
+            }
+            Stmt::AtomicStoreEx { status, address, value, size, ordering: _ } => {
+                let addr = self.eval_expr(address)?;
+                let val = self.eval_expr(value)?;
+                let sz = *size;
+                let size_bytes = sz.width().bits() / 8;
+                let success = self
+                    .state
+                    .memory
+                    .store_exclusive(addr as u64, size_bytes as u64, val as u64)
+                    .map_err(InterpreterError::MemoryFault)?;
+                let status_val = if success { 0u128 } else { 1u128 };
+                self.write_reg(status, &status_val);
+                Ok(())
+            }
+            Stmt::AtomicSwap {
+                dest,
+                address,
+                value,
+                size,
+                ordering: _,
+            } => {
+                let addr = self.eval_expr(address)?;
+                let val = self.eval_expr(value)?;
+                let sz = *size;
+                let old = self.memory_read(addr, sz)?;
+                self.memory_write(addr, val, sz)?;
+                self.write_reg(dest, &old);
+                Ok(())
+            }
+            Stmt::AtomicCasPair {
+                address,
+                expected_first,
+                expected_second,
+                desired_first,
+                desired_second,
+                size,
+                ordering: _,
+            } => {
+                let addr = self.eval_expr(address)?;
+                let sz_total = *size;
+                let old = self.memory_read(addr, sz_total)?;
+                let elem_bits = match sz_total {
+                    MemSize::Bits64 => 32usize,
+                    MemSize::Bits128 => 64usize,
+                    _ => 32usize,
+                };
+                let mask = if elem_bits == 64 { u128::MAX >> 64 } else { (1u128 << elem_bits) - 1 };
+                let first_old = old & mask;
+                let second_old = old >> elem_bits;
+                let expected_val = (self.read_reg(expected_first) as u128)
+                    + ((self.read_reg(expected_second) as u128) << elem_bits);
+                let desired_val = (self.read_reg(desired_first) as u128)
+                    + ((self.read_reg(desired_second) as u128) << elem_bits);
+                if old == expected_val {
+                    self.memory_write(addr, desired_val, sz_total)?;
+                }
+                // update compare regs with observed pair
+                self.write_reg(expected_first, &first_old);
+                self.write_reg(expected_second, &second_old);
+                Ok(())
+            }
+
+            Stmt::AtomicCas {
+                address,
+                expected,
+                desired,
+                size,
+                ordering: _,
+            } => {
+                let addr = self.eval_expr(address)?;
+                let sz = *size;
+                let old = self.memory_read(addr, sz)?;
+                let expected_val = self.read_reg(expected);
+                let desired_val = self.read_reg(desired);
+                if old == expected_val {
+                    self.memory_write(addr, desired_val, sz)?;
+                }
+                // update expected register with observed value
+                self.write_reg(expected, &old);
+                Ok(())
+            }
             Stmt::MemWrite {
                 address,
                 value,
