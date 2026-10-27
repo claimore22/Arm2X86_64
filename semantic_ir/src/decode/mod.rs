@@ -17,6 +17,7 @@ pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
 pub mod multiply;
+pub mod multiply_long;
 pub mod tbz_tbnz;
 pub mod unary;
 
@@ -99,9 +100,12 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_cond_select = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && !(( (bits >> 10) & 0x3F == 0x08) || ((bits >> 10) & 0x3F == 0x0C));
     let is_divide = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && (t == 0x02 || t == 0x03);
     let is_logical_imm = ((bits >> 20) & 0xFF) == 0x24 && ((bits >> 23) & 1) == 0;
-    // ADC/SBC: bits 28-24 = 11010 (0x1A), bit 28 = 1, bit 29 = 0 (S=0), bit 23 = 0
-    let is_adc_sbc = ((bits >> 28) & 1) == 1 && ((bits >> 29) & 1) == 0 && ((bits >> 24) & 0x1F) == 0x1A && ((bits >> 23) & 1) == 0;
-    let is_multiply = ((bits >> 24) & 0x1F) == 0b11011;
+    // Multiply long/high: bits 28-24 = 11011 (0x1B), bit 23 = 0, bits 22-21 != 0
+    // SMADDL/UMADDL/SMULL/UMULL (bits 22-21 = 01), SMULH/UMULH (bits 22-21 = 10)
+    // Signedness is bit 23; allow both signed and unsigned.
+    let is_multiply_long = ((bits >> 24) & 0x1F) == 0x1B && (((bits >> 21) & 3) != 0);
+    // Regular multiply: bits 28-24 = 11011 (0x1B), bit 23 = 0, bits 22-21 = 00
+    let is_multiply = ((bits >> 24) & 0x1F) == 0x1B && ((bits >> 23) & 1) == 0 && (((bits >> 21) & 3) == 0);
     let is_logical_imm = ((bits >> 20) & 0xFF) == 0x24 && ((bits >> 23) & 1) == 0;
     
     if is_ccmp {
@@ -138,6 +142,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         addsub_flags::decode_addsub_flags(bits)
     } else if is_cond_select {
         cond_select::decode_cond_select(bits)
+    } else if is_multiply_long {
+        multiply_long::decode_multiply_long(bits)
     } else if is_multiply {
         multiply::decode_multiply(bits)
     } else if is_logical_imm {
