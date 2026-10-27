@@ -14,6 +14,7 @@ pub mod divide;
 pub mod extend;
 pub mod extr;
 pub mod hint;
+pub mod load_store;
 pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
@@ -80,13 +81,14 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_extr = ((bits >> 22) & 0x1FF) == 0b110001111 && ((bits >> 28) & 1) == 0 && ((bits >> 29) & 3) == 3;
     // HINT: bits 31-8 = 0xD50320
     let is_hint = (bits >> 8) == 0xD50320;
-    // Barrier: ISB/DSB/DMB
+    // Barrier: ISB/DSB/DMB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
     let is_barrier = ((bits >> 24) & 0xFF) == 0xD5
         && ((bits >> 20) & 0xF) == 0
         && ((bits >> 16) & 7) == 3
         && ((bits >> 12) & 0xF) == 3
         && ((bits >> 5) & 7) >= 4 && ((bits >> 5) & 7) <= 6
         && (bits & 0x1F) == 0x1F;
+    // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
     // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
         let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
     let is_adr_adrp = ((bits >> 24) & 0xFF) == 0x10 || ((bits >> 24) & 0xFF) == 0x90;
