@@ -124,7 +124,7 @@ fn adds_subs_32bit() {
     assert!(!interp.state.pstate.flags.v);
     
     let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, false).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, true).unwrap();
     assert_eq!(native_result, 30);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags, 0);
@@ -154,7 +154,7 @@ fn adds_subs_32bit() {
 #[test]
 fn adc_sbc_32bit() {
     // ADC W0, W1, W2
-    let bits = 0x0B000020u32; // ADC W0, W1, W2 (extend)
+    let bits = 0x1A020020u32; // ADC W0, W1, W2 (shifted)
     let decoded = decode_instruction(bits).unwrap();
     let instruction = lower_to_ir(&decoded);
     validate_instruction(&instruction).unwrap();
@@ -166,8 +166,8 @@ fn adc_sbc_32bit() {
     interp.execute_instruction(&instruction).unwrap();
     assert_eq!(interp.state.gpr.read_w(0), 31);
     
-    let bytes = lower_to_x86_64_with_flags(&decoded, false).unwrap();
-    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, false).unwrap();
+    let bytes = lower_to_x86_64_with_flags(&decoded, true).unwrap();
+    let (native_result, native_x86_flags) = common::win32::run_native_with_flags(&bytes, 10, 20, true).unwrap();
     assert_eq!(native_result, 31);
     let native_arm_flags = extract_arm_flags_from_x86(native_x86_flags, false);
     assert_eq!(native_arm_flags, 0);

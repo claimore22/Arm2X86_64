@@ -14,7 +14,7 @@ pub mod divide;
 pub mod extend;
 pub mod extr;
 pub mod hint;
-pub mod load_store;
+pub mod msr_mrs;
 pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
@@ -65,13 +65,13 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     
     // Logical shifted: bits 28-24 = 10100 (0x14), bit 28 = 0, bit 23 = 0
     // This matches compiler output for AND/ORR/EOR/ANDS (0x94, 0xB4, 0xD4, 0xF4)
-    let is_logical = ((bits >> 24) & 0x1F) == 0x14 && ((bits >> 23) & 1) == 0;
+    let is_logical = (((bits >> 24) & 0x1F) == 0x14 || ((bits >> 24) & 0x1F) == 0x0A) && ((bits >> 23) & 1) == 0;
     let is_move_wide = ((bits >> 28) & 1) == 1
         && ((bits >> 24) & 0x0F) == 0b0010
         && ((bits >> 23) & 1) == 1;
     let is_bitfield = ((bits >> 24) & 0x1F) == 0b10011;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
-    let is_extend = false;
+    let is_extend = ((bits >> 24) & 0x1F) == 0x0B && ((bits >> 29) & 1) == 0;
     // Data Processing - 1 Source (REV, REV16, REV32, REV64, CLZ, CLS, RBIT)
 // bits 27-23 = 10101 (0x15), bits 22-19 = 1100 (0xC)
     let is_unary = ((bits >> 23) & 0x1F) == 0b10101
@@ -88,6 +88,10 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         && ((bits >> 12) & 0xF) == 3
         && ((bits >> 5) & 7) >= 4 && ((bits >> 5) & 7) <= 6
         && (bits & 0x1F) == 0x1F;
+    // MSR/MRS (system register): bits 31-21 = 1101010100x (x=0 for MSR reg, x=1 for MRS)
+    // MRS: 0xD53... (bits 31-21 = 11010101011 = 0xD53)
+    // MSR (register): 0xD51... (bits 31-21 = 11010101001 = 0xD51)
+    let is_msr_mrs = ((bits >> 21) & 0x7FF) == 0b11010101000 || ((bits >> 21) & 0x7FF) == 0b11010101001;
     // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
     // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
         let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
@@ -104,7 +108,7 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         || ((bits >> 26) & 0x3F) == 0b100101
         || ((bits >> 24) & 0xFF) == 0x54;
     let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
-    let is_extend = false;
+    let is_extend = ((bits >> 24) & 0x1F) == 0x0B && ((bits >> 29) & 1) == 0;
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
     let is_cond_select = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && !(( (bits >> 10) & 0x3F == 0x08) || ((bits >> 10) & 0x3F == 0x0C));
     let is_divide = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && (t == 0x02 || t == 0x03);
@@ -143,6 +147,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         adr_adrp::decode_adr_adrp(bits)
     } else if is_barrier {
         barrier::decode_barrier(bits)
+    } else if is_msr_mrs {
+        msr_mrs::decode_msr_mrs(bits)
     } else if is_branch_reg {
         branch_reg::decode_branch_reg(bits)
     } else if is_branch_imm {
