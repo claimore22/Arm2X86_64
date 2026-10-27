@@ -14,7 +14,6 @@ pub mod divide;
 pub mod extend;
 pub mod extr;
 pub mod hint;
-pub mod load_store;
 pub mod logical;
 pub mod logical_imm;
 pub mod move_wide;
@@ -89,17 +88,7 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         && ((bits >> 5) & 7) >= 4 && ((bits >> 5) & 7) <= 6
         && (bits & 0x1F) == 0x1F;
     // TBZ/TBNZ: bits 30-24 = 011011x (0x36 for TBZ), 0110111 (0x37 for TBNZ)
-    let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
-    // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
-    let is_load_store = ((bits >> 24) & 0x3F) == 0b111001;
-    // Barrier: DSB/DMB/ISB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
-    let is_barrier = ((bits >> 24) & 0xFF) == 0xD5  // system instruction category
-        && ((bits >> 20) & 0xF) == 0  // bits 23-20 = 0
-        && ((bits >> 16) & 7) == 3  // op1 = 3
-        && ((bits >> 12) & 0xF) == 3  // CRn = 3
-        && ((bits >> 5) & 7) >= 4 && ((bits >> 5) & 7) <= 6  // op2 = 4,5,6
-        && (bits & 0x1F) == 0x1F;  // Rt = 0x1F
-    // ADR/ADRP: bits 31-24 = 00010000 (0x10) for ADR, 10010000 (0x90) for ADRP
+        let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
     let is_adr_adrp = ((bits >> 24) & 0xFF) == 0x10 || ((bits >> 24) & 0xFF) == 0x90;
     // Branch register: bits 31-24 = 11010110 (0xD6), bits 20-10 = 11111000000 (0x7C0), bit 4 = 0
     let is_branch_reg = ((bits >> 24) & 0xFF) == 0xD6
@@ -146,8 +135,6 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         extr::decode_extr(bits)
     } else if is_hint {
         hint::decode_hint(bits)
-    } else if is_load_store {
-        load_store::decode_load_store(bits)
     } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_adr_adrp {
