@@ -15,6 +15,7 @@ pub mod extend;
 pub mod extr;
 pub mod hint;
 pub mod load_store;
+pub mod load_store_reg;
 pub mod msr_mrs;
 pub mod logical;
 pub mod logical_imm;
@@ -84,6 +85,7 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_hint = (bits >> 8) == 0xD50320;
     // Load/Store (unsigned offset): bits 29-24 = 111001 (0x39)
     let is_load_store = ((bits >> 24) & 0x3F) == 0b111001;
+    let is_load_store_reg = ((bits >> 24) & 0x3F) == 0x38;
     // Barrier: ISB/DSB/DMB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
     let is_barrier = ((bits >> 24) & 0xFF) == 0xD5
         && ((bits >> 20) & 0xF) == 0
@@ -146,6 +148,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         hint::decode_hint(bits)
     } else if is_load_store {
         load_store::decode_load_store(bits)
+    } else if is_load_store_reg {
+        load_store_reg::decode_load_store_reg(bits)
     } else if is_tbz_tbnz {
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_adr_adrp {
@@ -189,8 +193,16 @@ pub fn lower_to_ir(decoded: &DecodedInstruction) -> Instruction {
                _ => MemSize::Bits64,
            };
            let base = Expr::ReadReg { reg: decoded.rn, width: decoded.width };
-           let offset = Expr::Const { value: decoded.imm as u128, ty: decoded.width };
-           let address = Expr::Binary { op: BinOp::Add, left: Box::new(base), right: Box::new(offset), ty: ValueType::Bits(Width::Fixed(decoded.width)) };
+           let address = if decoded.rm == Reg::Xzr {
+               let offset = Expr::Const { value: decoded.imm as u128, ty: decoded.width };
+               Expr::Binary { op: BinOp::Add, left: Box::new(base), right: Box::new(offset), ty: ValueType::Bits(Width::Fixed(decoded.width)) }
+           } else {
+               let rm_read = Expr::ReadReg { reg: decoded.rm, width: decoded.width };
+               // Use ExtendReg to approximate register offset (basic support)
+               let shift = Expr::Const { value: decoded.shift_amount as u128, ty: decoded.width };
+               let extended = Expr::ExtendReg { register: Box::new(rm_read), kind: crate::primitives::ExtendKind::Uxtx, shift: Box::new(shift), to: Width::Fixed(decoded.width) };
+               Expr::Binary { op: BinOp::Add, left: Box::new(base), right: Box::new(extended), ty: ValueType::Bits(Width::Fixed(decoded.width)) }
+           };
            let semantics = if decoded.mnemonic == "LDR" {
                vec![Stmt::WriteReg { reg: decoded.rd, value: Expr::MemRead { address: Box::new(address), size: mem_size } }]
            } else {
