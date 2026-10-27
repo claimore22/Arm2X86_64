@@ -72,8 +72,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         && ((bits >> 24) & 0x0F) == 0b0010
         && ((bits >> 23) & 1) == 1;
     let is_bitfield = ((bits >> 24) & 0x1F) == 0b10011;
-    let is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
-    let is_extend = ((bits >> 24) & 0x1F) == 0x0B && ((bits >> 29) & 1) == 0;
+    let _is_addsub_imm = ((bits >> 24) & 0x1F) == 0b10001;
+    let _is_extend = ((bits >> 24) & 0x1F) == 0x0B && ((bits >> 29) & 1) == 0;
     // Data Processing - 1 Source (REV, REV16, REV32, REV64, CLZ, CLS, RBIT)
 // bits 27-23 = 10101 (0x15), bits 22-19 = 1100 (0xC)
     let is_unary = ((bits >> 23) & 0x1F) == 0b10101
@@ -117,7 +117,7 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_addsub_flags = ((bits >> 24) & 0x1F) == 0b01011 && ((bits >> 29) & 1) == 1;
     let is_cond_select = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && !(( (bits >> 10) & 0x3F == 0x08) || ((bits >> 10) & 0x3F == 0x0C));
     let is_divide = ((bits >> 24) & 0x1F) == 0b11010 && ((bits >> 23) & 1) == 1 && (t == 0x02 || t == 0x03);
-    let is_logical_imm = ((bits >> 20) & 0xFF) == 0x24 && ((bits >> 23) & 1) == 0;
+    let _is_logical_imm = ((bits >> 20) & 0xFF) == 0x24 && ((bits >> 23) & 1) == 0;
     // Multiply long/high: bits 28-24 = 11011 (0x1B), bit 23 = 0, bits 22-21 != 0
     // SMADDL/UMADDL/SMULL/UMULL (bits 22-21 = 01), SMULH/UMULH (bits 22-21 = 10)
     // Signedness is bit 23; allow both signed and unsigned.

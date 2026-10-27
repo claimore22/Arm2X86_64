@@ -4,7 +4,7 @@ use super::DecodedInstruction;
 
 pub fn decode_branch_imm(bits: u32) -> Result<DecodedInstruction, DecodeError> {
     let _sf = (bits >> 31) & 1;
-    let op = (bits >> 31) & 1;  // 0 = B, 1 = BL? No, B and BL have different top bits
+    let _op = (bits >> 31) & 1;  // 0 = B, 1 = BL? No, B and BL have different top bits
     
     // B: bits 31-26 = 000101 (0x05)
     // BL: bits 31-26 = 100101 (0x25)

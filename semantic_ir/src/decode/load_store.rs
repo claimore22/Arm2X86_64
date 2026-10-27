@@ -1,4 +1,4 @@
-use crate::types::{BitWidth, MemSize, Reg};
+use crate::types::{BitWidth, Reg};
 use crate::primitives::ShiftKind;
 use super::DecodeError;
 use super::DecodedInstruction;

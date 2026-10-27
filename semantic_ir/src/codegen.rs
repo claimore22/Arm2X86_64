@@ -1009,7 +1009,7 @@ fn emit_cond_select(decoded: &crate::decode::DecodedInstruction) -> Result<Vec<u
     Ok(bytes)
 }
 
-fn emit_nop(decoded: &crate::decode::DecodedInstruction) -> Result<Vec<u8>, CodegenError> {
+fn emit_nop(_decoded: &crate::decode::DecodedInstruction) -> Result<Vec<u8>, CodegenError> {
     // NOP SEV WFE WFI YIELD SEVL: just return 0
     let mut bytes = Vec::new();
     bytes.push(0xB8); // mov eax, imm32

@@ -3,7 +3,7 @@ use super::DecodeError;
 use super::DecodedInstruction;
 
 pub fn decode_adr_adrp(bits: u32) -> Result<DecodedInstruction, DecodeError> {
-    let a = (bits >> 31) & 1;
+    let _a = (bits >> 31) & 1;
     let _immlo = (bits >> 29) & 3;
     let immhi = (bits >> 5) & 0x7FFFF;
     let rd = bits & 0x1F;

@@ -28,7 +28,7 @@ pub fn decode_branch_reg(bits: u32) -> Result<DecodedInstruction, DecodeError> {
 
     let width = BitWidth::W64;
 
-    fn to_reg(idx: u8, w: BitWidth) -> Result<Reg, DecodeError> {
+    fn to_reg(idx: u8, _w: BitWidth) -> Result<Reg, DecodeError> {
         match Reg::x(idx) {
             Some(Reg::X(n)) => Ok(Reg::X(n)),
             Some(Reg::Xzr) => Ok(Reg::Xzr),
