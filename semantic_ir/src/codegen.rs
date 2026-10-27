@@ -1041,7 +1041,7 @@ pub fn lower_to_x86_64(decoded: &crate::decode::DecodedInstruction) -> Result<Ve
         // Branch register - just pass through Rn
         "BR" | "BLR" | "RET" => emit_branch_reg(decoded),
         // Hint instructions - NOP
-        "NOP" | "SEV" | "WFE" | "WFI" | "YIELD" | "SEVL" => emit_nop(decoded),
+        "NOP" | "SEV" | "WFE" | "WFI" | "YIELD" | "SEVL" | "ISB" | "DSB" | "DMB" => emit_nop(decoded),
         // Branch immediate - not lowered to x86 for now
         "B" | "BL" | "B.cond" => Err(CodegenError::UnsupportedMnemonic(decoded.mnemonic.clone())),
         // Test bit and branch

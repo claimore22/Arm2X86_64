@@ -3,6 +3,7 @@ pub mod add_sub;
 pub mod addsub_flags;
 pub mod addsub_imm;
 pub mod adr_adrp;
+pub mod barrier;
 pub mod bitfield;
 pub mod branch_imm;
 pub mod branch_reg;
@@ -81,6 +82,13 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
     let is_tbz_tbnz = ((bits >> 24) & 0x7F) == 0x36 || ((bits >> 24) & 0x7F) == 0x37;
     // HINT: bits 31-8 = 0xD50320
     let is_hint = (bits >> 8) == 0xD50320;
+    // Barrier: DSB/DMB/ISB - bits 31-20 = 0xD5033, bits 19-16 = 0x3, CRn = 3, op2 = 4/5/6, Rt = 0x1F
+    let is_barrier = ((bits >> 24) & 0xFF) == 0xD5  // system instruction category
+        && ((bits >> 20) & 0xF) == 0  // bits 23-20 = 0
+        && ((bits >> 16) & 7) == 3  // op1 = 3
+        && ((bits >> 12) & 0xF) == 3  // CRn = 3
+        && ((bits >> 5) & 7) >= 4 && ((bits >> 5) & 7) <= 6  // op2 = 4,5,6
+        && (bits & 0x1F) == 0x1F;  // Rt = 0x1F
     // ADR/ADRP: bits 31-24 = 00010000 (0x10) for ADR, 10010000 (0x90) for ADRP
     let is_adr_adrp = ((bits >> 24) & 0xFF) == 0x10 || ((bits >> 24) & 0xFF) == 0x90;
     // Branch register: bits 31-24 = 11010110 (0xD6), bits 20-10 = 11111000000 (0x7C0), bit 4 = 0
@@ -132,6 +140,8 @@ pub fn decode_instruction(bits: u32) -> Result<DecodedInstruction, DecodeError> 
         tbz_tbnz::decode_tbz_tbnz(bits)
     } else if is_adr_adrp {
         adr_adrp::decode_adr_adrp(bits)
+    } else if is_barrier {
+        barrier::decode_barrier(bits)
     } else if is_branch_reg {
         branch_reg::decode_branch_reg(bits)
     } else if is_branch_imm {
